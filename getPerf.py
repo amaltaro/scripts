@@ -9,7 +9,7 @@ import itertools
 import matplotlib
 matplotlib.use('agg')
 from pylab import *
-#import numpy as np
+import numpy as np
 
 metrics = ['PeakValueVsize', 'AvgEventTime', 'TotalJobTime', 'PeakValueRss']
 
@@ -127,10 +127,12 @@ def makePlots(perf, worst):
     figCounter = 1
     # iterating over metrics
     for metric in metrics:
+        print " ****** Metric: %s ******" % metric
         count = 0           # used to count the number of bars
-        figure(figCounter)
+        figure(figsize=(8, 12))
         xnames = []
         values = []
+        yworst = []
         # iterating over workflows
         for wf,val1 in perf.iteritems():
             # iterating over tasks
@@ -147,15 +149,21 @@ def makePlots(perf, worst):
                     shortWf = shortWf[1:]
                     xnames.append(shortWf)
                     # it gets only the last value in the list, for now...
-                    values.append(val2[metric][-1])      # the bar lengths
+                    #values.append(val2[metric][-1])      # the bar lengths
+                    values.append(np.mean(val2[metric]))
+                    # Gets the worst of the worstOffenders only
+                    yworst.append(max(worst[wf][task][metric]))
+                    print "Original worst: ", worst[wf][task][metric]
         # Checking wether there is something to show or not
         if count:
             print "\nThe following graph will be made with the following values:\n"
             print "count: ", count
             print "xnames: ", xnames
             print "values: ", values
+            print "yworst: ", yworst
             pos = arange(count)+0.5        # the bar centers on the y axis
-            bar(pos, values, yerr=rand(count), ecolor='r', align='center')
+            #bar(pos, values, yerr=rand(count), ecolor='r', align='center')
+            bar(pos, values, yerr=yworst, ecolor='r', align='center')
             xticks(pos, xnames, rotation=80)
             ### Tweaking the figure
             subplots_adjust(bottom=0.6)           # Automatically adjust subplot parameters to give specified padding
