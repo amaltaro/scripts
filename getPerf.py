@@ -8,7 +8,8 @@ import itertools
 #from matplotlib import pyplot as p
 import matplotlib
 matplotlib.use('agg')
-from pylab import *
+import matplotlib.pyplot as pp
+#from pylab import *
 import numpy as np
 
 metrics = ['PeakValueVsize', 'AvgEventTime', 'TotalJobTime', 'PeakValueRss']
@@ -129,7 +130,7 @@ def makePlots(perf, worst):
     for metric in metrics:
         print " ****** Metric: %s ******" % metric
         count = 0           # used to count the number of bars
-        figure(figsize=(8, 12))
+        pp.figure(figsize=(8, 12))
         xnames = []
         values = []
         yworst = []
@@ -140,7 +141,7 @@ def makePlots(perf, worst):
                 # first plotting only the DIGI step
                 if 'DIGI' in task:
                     count += 1
-                    title('CMSSW_X_Y_Z: '+task+' performance')
+                    pp.title('CMSSW_X_Y_Z: '+task+' performance')
                     # Reducing the size of the workflow name
                     aux = wf.split('_')[:-3]
                     aux = '_'.join(aux)
@@ -148,8 +149,7 @@ def makePlots(perf, worst):
                     shortWf = '_'.join(aux)
                     shortWf = shortWf[1:]
                     xnames.append(shortWf)
-                    # it gets only the last value in the list, for now...
-                    #values.append(val2[metric][-1])      # the bar lengths
+                    # it gets the mean of all values in the array
                     values.append(np.mean(val2[metric]))
                     # Gets the worst of the worstOffenders only
                     yworst.append(max(worst[wf][task][metric]))
@@ -161,21 +161,21 @@ def makePlots(perf, worst):
             print "xnames: ", xnames
             print "values: ", values
             print "yworst: ", yworst
-            pos = arange(count)+0.5        # the bar centers on the y axis
+            pos = np.arange(count)+0.5        # the bar centers on the y axis
             #bar(pos, values, yerr=rand(count), ecolor='r', align='center')
-            bar(pos, values, yerr=yworst, ecolor='r', align='center')
-            xticks(pos, xnames, rotation=80)
+            pp.bar(pos, values, yerr=yworst, ecolor='r', align='center')
+            pp.xticks(pos, xnames, rotation=80)
             ### Tweaking the figure
-            subplots_adjust(bottom=0.6)           # Automatically adjust subplot parameters to give specified padding
+            pp.subplots_adjust(bottom=0.6)           # Automatically adjust subplot parameters to give specified padding
             widthscale = count/4
             figsize = (8*widthscale,6)            # fig size in inches (width,height)
             #figure.Figure(figsize = figsize)
             ### end tweaking
-            ylabel(metric)
+            pp.ylabel(metric)
             #xlabel('Workflow')
-            grid(True)
+            pp.grid(True)
             filename = 'DIGI_'+metric+'.png'
-            savefig('/afs/cern.ch/work/a/amaltaro/www/testPlots/'+filename)
+            pp.savefig('/afs/cern.ch/work/a/amaltaro/www/testPlots/'+filename)
             figCounter += 1
         else:
             print "I have nothing to show for this DIGI task\n" 
