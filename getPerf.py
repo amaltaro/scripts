@@ -5,11 +5,9 @@ import optparse
 import httplib
 import datetime
 import itertools
-#from matplotlib import pyplot as p
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as pp
-#from pylab import *
 import numpy as np
 
 metrics = ['PeakValueVsize', 'AvgEventTime', 'TotalJobTime', 'PeakValueRss']
@@ -167,9 +165,6 @@ def makePlots(perf, worst):
             pp.xticks(pos, xnames, rotation=80)
             ### Tweaking the figure
             pp.subplots_adjust(bottom=0.6)           # Automatically adjust subplot parameters to give specified padding
-            widthscale = count/4
-            figsize = (8*widthscale,6)            # fig size in inches (width,height)
-            #figure.Figure(figsize = figsize)
             ### end tweaking
             pp.ylabel(metric)
             #xlabel('Workflow')
