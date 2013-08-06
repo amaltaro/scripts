@@ -111,7 +111,7 @@ def getWorstOffenders(workload, workflow, task):
     print "FinalWorst: ", finalWorst
     return finalWorst
 
-def makePlots(perf, worst):
+def makePlotsDIGI(perf, worst):
     """
     It receives a dict of a dict of a dict containing the workflowName, 
     taskName/pathToTask and the performance values according to the metrics.
@@ -119,8 +119,6 @@ def makePlots(perf, worst):
     Finally it makes a plot. 
     """
     print "\nmakePlots()"
-    #print "\nperf: ", perf
-    #print "\nworst: ", worst
     print "\nIterating over perf dict..."
     metrics = ['PeakValueVsize','PeakValueRss','AvgEventTime','TotalJobTime']
     # iterating over metrics
@@ -131,11 +129,11 @@ def makePlots(perf, worst):
         xnames = []
         xvalues = []
         yworst = []
+        data = {}
         # iterating over workflows
         for wf,val1 in perf.iteritems():
             # iterating over tasks
             for task,val2 in val1.iteritems():
-                # first plotting only the DIGI step
                 if 'DIGI' in task:
                     count += 1
                     pp.title('CMSSW_X_Y_Z: '+task+' performance')
@@ -159,40 +157,76 @@ def makePlots(perf, worst):
             print "xvalues: ", xvalues
             print "yworst: ", yworst
             pos = np.arange(count)+0.5        # the bar centers on the y axis
-            #bar(pos, xvalues, yerr=rand(count), ecolor='r', align='center')
             pp.bar(pos, xvalues, ecolor='r', align='center')
             pp.plot(pos, yworst, 'rv', markersize=13)
             pp.xticks(pos, xnames, rotation=80)
             ### Tweaking the figure
             fig.subplots_adjust(bottom=0.6)           # Automatically adjust subplot parameters to give specified padding
-            ### end tweaking
             pp.ylabel(metric)
-            #xlabel('Workflow')
             pp.grid(True)
             filename = 'DIGI_'+metric+'.png'
             fig.savefig('/afs/cern.ch/work/a/amaltaro/www/testPlots/'+filename)
         else:
             print "I have nothing to show for this DIGI task\n" 
 
-###    print "\nHERE STARTS MY EXAMPLE!"
-###    figure(1)
-###    # return 2 random numbers from 0 to 1
-###    val = 3+10*rand(2)    # the bar lengths
-###    # Return evenly spaced values within a given interval.
-###    pos = arange(2)+.5    # the bar centers on the y axis
-###    # pos --> the vertical positions of the bottom edges of the bars
-###    # val --> the lengths of the bars
-###    # xerr --> if not None, will be used to generate errorbars on the bar chart
-###    # ecolor --> specifies the color of any errorbar
-###    barh(pos, val, xerr=rand(2), ecolor='r', align='center')
-###    # Get or set the y-limits of the current tick locations and labels
-###    title('CMSSW_X_Y_Z Performance Plots')
-###    #yticks(pos, ('DIGI', 'RECO'))
-###    yticks(pos, ynames, rotation=45)
-###    xlabel('Memory (MB)')
-###    ylabel('Workflow/Task')
-###    grid(True)
-###    savefig('/afs/cern.ch/work/a/amaltaro/www/foo.png')
+def makePlotsRECO(perf, worst):
+    """
+    It receives a dict of a dict of a dict containing the workflowName, 
+    taskName/pathToTask and the performance values according to the metrics.
+    It receives a dictionary with the worst values for those 4 metrics.
+    Finally it makes a plot. 
+    """
+    print "\nmakePlots()"
+    print "\nIterating over perf dict..."
+    metrics = ['PeakValueVsize','PeakValueRss','AvgEventTime','TotalJobTime']
+    # iterating over metrics
+    for metric in metrics:
+        print " ****** Metric: %s ******" % metric
+        count = 0           # used to count the number of bars
+        fig = pp.figure(figsize=(8, 12))
+        xnames = []
+        xvalues = []
+        yworst = []
+        data = {}
+        # iterating over workflows
+        for wf,val1 in perf.iteritems():
+            # iterating over tasks
+            for task,val2 in val1.iteritems():
+                if 'RECO' in task:
+                    count += 1
+                    pp.title('CMSSW_X_Y_Z: '+task+' performance')
+                    # Reducing the size of the workflow name
+                    aux = wf.split('_')[:-3]
+                    aux = '_'.join(aux)
+                    aux = aux.split('_')[4:]
+                    shortWf = '_'.join(aux)
+                    shortWf = shortWf[1:]
+                    xnames.append(shortWf)
+                    # it gets the mean of all values in the array
+                    xvalues.append(np.mean(val2[metric]))
+                    # Gets the worst of the worstOffenders only
+                    yworst.append(max(worst[wf][task][metric]))
+                    print "Original worst: ", worst[wf][task][metric]
+        # Checking wether there is something to show or not
+        if count:
+            print "\nThe following graph will be made with the following values:\n"
+            print "count: ", count
+            print "xnames: ", xnames
+            print "xvalues: ", xvalues
+            print "yworst: ", yworst
+            pos = np.arange(count)+0.5        # the bar centers on the y axis
+            pp.bar(pos, xvalues, ecolor='r', align='center')
+            pp.plot(pos, yworst, 'r^', markersize=10)
+            pp.xticks(pos, xnames, rotation=80)
+            ### Tweaking the figure
+            fig.subplots_adjust(bottom=0.6)           # Automatically adjust subplot parameters to give specified padding
+            pp.ylabel(metric)
+            pp.grid(True)
+            filename = 'RECO_'+metric+'.png'
+            fig.savefig('/afs/cern.ch/work/a/amaltaro/www/testPlots/'+filename)
+        else:
+            print "I have nothing to show for this RECO task\n"
+
 
 def main():
     """
@@ -227,7 +261,8 @@ def main():
     print "\n***** Time to make the plots *****\n"
     print "\nfinalPerf: ", finalPerf
     print "\nfinalWorst: ", finalWorst
-    makePlots(finalPerf, finalWorst)
+    makePlotsDIGI(finalPerf, finalWorst)
+    makePlotsRECO(finalPerf, finalWorst)
     print "\nEND_OF_SCRIPT"
     sys.exit(0)
 
