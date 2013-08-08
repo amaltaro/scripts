@@ -37,14 +37,19 @@ def getTaskNames(workflow):
             nbTasks = int(raw.split('=')[1])
             print "\nNumber of tasks: %d" % nbTasks
     for nb in range(2, nbTasks+1):
+        task = 'request.schema.Task'+str(nb)
         for raw in list:
-            if 'request.schema.Task2.InputTask' in raw:
+            if task+'.InputTask' in raw:
                 previousTask = raw.split("'")[1]
-            elif 'request.schema.Task2.InputFromOutputModule' in raw:
+            elif task+'.InputFromOutputModule' in raw:
                 outputModule = raw.split("'")[1]
-            elif 'request.schema.Task2.TaskName' in raw:
+            elif task+'.TaskName' in raw:
                 Task = raw.split("'")[1]
-        taskNames.append(previousTask+'/'+previousTask+'Merge'+outputModule+'/'+Task)
+        if nb == 2:
+            taskNames.append(previousTask+'/'+previousTask+'Merge'+outputModule+'/'+Task)
+        else:
+            previous = taskNames[-1]
+            taskNames.append(previous+'/'+previousTask+'Merge'+outputModule+'/'+Task)
     print taskNames
     return taskNames
 
@@ -101,9 +106,53 @@ def getWorstOffenders(workload, workflow, task):
     for i in metrics:
         finalWorst[i] = []
         for j in workload['performance'][semiPath]['cmsRun1'][i]['worstOffenders']:
-            finalWorst[i].append(float(j['value']))
+            if not np.isinf(float(j['value'])):
+                finalWorst[i].append(float(j['value']))
+            else:
+                print "\n?????????? I FOUND AN INF VALUE FOR:"
+                print "Workflow: %s\tTask: %s\tValue:%f" % (workflow, task, float(j['value']))
     print "FinalWorst: ", finalWorst
     return finalWorst
+
+def getYArray(metric, maximum):
+    """
+    It returns an array that will be used to create the grid lines in the plots (Y axis only)
+    Starting with the premisse that plots won't support more than 50 horizontal lines.
+    """
+    step = float(maximum/30)
+    ypos = []
+    if metric == 'AvgEventTime':
+        if step <= 0.5:
+            ypos = np.arange(0., maximum+1, .5)
+        else:
+            ypos = np.arange(0., maximum+step, int(step+1))
+    elif metric == 'PeakValueVsize':
+        if step <= 200:
+            ypos = np.arange(0, maximum+200, 200)
+        else:
+            ypos = np.arange(0, maximum+step, int(step+1))
+    elif metric == 'PeakValueRss':
+        if step <= 200:
+            ypos = np.arange(0, maximum+200, 200)
+        else:
+            ypos = np.arange(0, maximum+step, int(step+1))
+    else: # TotalJobTime
+        if step <= 500:
+            ypos = np.arange(0, maximum+500, 500)
+        else:
+            ypos = np.arange(0, maximum+step, int(step+1))
+    return ypos
+
+def getWorstValue(iniWorst, xvalues):
+    """
+    Return the real worst case in the workflow, taking into consideration
+    the worstOffenders and the xvalues list
+    """
+    print "Is iniWorst (%f) > max(xvalues) (%r)\n" % (iniWorst, xvalues) 
+    if iniWorst > (max(xvalues)):
+        return iniWorst
+    else:
+        return (max(xvalues))
 
 def makePlots(perf, worst):
     """
@@ -115,13 +164,13 @@ def makePlots(perf, worst):
     print "\nmakePlots()"
     print "\nIterating over perf dict..."
     metrics = ['PeakValueVsize','PeakValueRss','AvgEventTime','TotalJobTime']
-    steps = ['DIGI', 'RECO']
+    steps = ['GEN-SIM', 'DIGI', 'RECO', 'ALCA']
     # iterating over metrics
     for metric in metrics:
         print " ****** Metric: %s ******" % metric
-        xnames = {'DIGI' : [], 'RECO' : []}
-        xvalues = {'DIGI' : [], 'RECO' : []}
-        yworst = {'DIGI' : [], 'RECO' : []}
+        xnames = {steps[0] : [], steps[1] : [], steps[2] : [], steps[3] : []}
+        xvalues = {steps[0] : [], steps[1] : [], steps[2] : [], steps[3] : []}
+        yworst = {steps[0] : [], steps[1] : [], steps[2] : [], steps[3] : []}
         # iterating over workflows
         for wf,val1 in perf.iteritems():
             # iterating over tasks
@@ -132,18 +181,28 @@ def makePlots(perf, worst):
                 aux = aux.split('_')[4:]
                 shortWf = '_'.join(aux)
                 shortWf = shortWf[1:]
-                if 'DIGI' in task:
-                    xnames['DIGI'].append(shortWf)
+                if steps[1] in task:
+                    xnames[steps[1]].append(shortWf)
                     # it gets the mean of all values in the array
-                    xvalues['DIGI'].append(np.mean(val2[metric]))
+                    xvalues[steps[1]].append(np.mean(val2[metric]))
                     # Gets the worst of the worstOffenders only
-                    yworst['DIGI'].append(max(worst[wf][task][metric]))
-                elif 'RECO' in task:
-                    xnames['RECO'].append(shortWf)
-                    # it gets the mean of all values in the array
-                    xvalues['RECO'].append(np.mean(val2[metric]))
-                    # Gets the worst of the worstOffenders only
-                    yworst['RECO'].append(max(worst[wf][task][metric]))
+                    #yworst[steps[1]].append(max(worst[wf][task][metric]))
+                    yworst[steps[1]].append(getWorstValue(max(worst[wf][task][metric]), val2[metric]))
+                elif steps[2] in task:
+                    xnames[steps[2]].append(shortWf)
+                    xvalues[steps[2]].append(np.mean(val2[metric]))
+                    #yworst[steps[2]].append(max(worst[wf][task][metric]))
+                    yworst[steps[2]].append(getWorstValue(max(worst[wf][task][metric]), val2[metric]))
+                elif steps[3] in task:
+                    xnames[steps[3]].append(shortWf)
+                    xvalues[steps[3]].append(np.mean(val2[metric]))
+                    #yworst[steps[3]].append(max(worst[wf][task][metric]))
+                    yworst[steps[3]].append(getWorstValue(max(worst[wf][task][metric]), val2[metric]))
+                else: # means GEN-SIM step
+                    xnames[steps[0]].append(shortWf)
+                    xvalues[steps[0]].append(np.mean(val2[metric]))
+                    #yworst[steps[0]].append(max(worst[wf][task][metric]))
+                    yworst[steps[0]].append(getWorstValue(max(worst[wf][task][metric]), val2[metric]))
         for step in steps:
             # if here is one workflow for this step, then it must be plotted
             if xnames[step]:
@@ -151,7 +210,8 @@ def makePlots(perf, worst):
                 print "xnames: ", xnames[step]
                 print "xvalues: ", xvalues[step]
                 print "yworst: ", yworst[step]
-                fig = pp.figure(figsize=(4, 6))
+                width = len(yworst[step]) * 1.5
+                fig = pp.figure(figsize=(width, 10))
                 #pp.title('CMSSW_X_Y_Z: '+step+' performance')
                 pp.title(step+': '+metric)
                 pos = np.arange(len(xnames[step]))+0.5        # the bar centers on the x axis based on the # of workflows
@@ -159,26 +219,17 @@ def makePlots(perf, worst):
                 pp.plot(pos, yworst[step], 'r.', markersize=11)
                 pp.xticks(pos, xnames[step], rotation=80)
                 # tweaking y axis
-                ypos = []
-                if metric == 'AvgEventTime':
-                    ypos = np.arange(0., max(yworst[step])+1, .5)
-                elif metric == 'PeakValueVsize':
-                    ypos = np.arange(0, max(yworst[step])+500, 200)
-                elif metric == 'PeakValueRss':
-                    ypos = np.arange(0, max(yworst[step])+500, 200)
-                else: # TotalJobTime
-                    ypos = np.arange(0, max(yworst[step])+500, 500)
-                if len(ypos):
-                    pp.yticks(ypos)
+                ypos = getYArray(metric, max(yworst[step]))
+                pp.yticks(ypos)
                 ### Tweaking the figure
-                fig.subplots_adjust(bottom=0.3)           # Automatically adjust subplot parameters to give specified padding
+                fig.subplots_adjust(bottom=0.5)           # Automatically adjust subplot parameters to give specified padding
                 #pp.ylabel(metric)
                 #pp.grid(True)
                 pp.grid(True, which='major')
                 filename = step+'_'+metric+'.png'
                 fig.savefig('/afs/cern.ch/work/a/amaltaro/www/testPlots/'+filename)
             else:
-                print "Nothing to plot for: %s and %s\n" % (step, metric)
+                print "\nNothing to plot for: %s and %s\n" % (step, metric)
 
 def main():
     """
@@ -192,7 +243,18 @@ def main():
      * Finally it makes 4 plots: 1 for Gen-Sim level step, one for DIGI, one for RECO
        and the last one for ALCA.
     """
-    list = ['anlevin_RVCMSSW_6_2_0QCD_Pt_600_800_130714_020114_1012','anlevin_RVCMSSW_6_2_0TTbarLepton_130714_015656_8806']
+    #list = ['anlevin_RVCMSSW_6_2_0QCD_Pt_600_800_130714_020114_1012','anlevin_RVCMSSW_6_2_0TTbarLepton_130714_015656_8806']
+    args=sys.argv[1:]
+    if len(args) != 1:
+        print "usage: python getPerf.py <inputFile_containing_a_list_of_workflows>"
+        sys.exit(0)
+    inputFile=args[0]
+    f = open(inputFile, 'r')
+    list = []
+    for line in f:
+        list.append(line.rstrip('\n'))
+    print "This is the list of workflows: ", list
+    f.close
     count = 1
     finalPerf = {}
     finalWorst = {}
