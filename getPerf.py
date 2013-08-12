@@ -124,6 +124,20 @@ def getYArray(metric, maximum):
     if metric == 'AvgEventTime':
         if step <= 0.5:
             ypos = np.arange(0., maximum+1, .5)
+        elif 0.5 < step <= 1.0:
+            ypos = np.arange(0., maximum+1, 1.0)
+        elif 1. < step <= 5.0:
+            ypos = np.arange(0., maximum+5, 5.0)
+        elif 5. < step <= 10.0:
+            ypos = np.arange(0., maximum+10, 10.0)
+        elif 10. < step <= 20.0:
+            ypos = np.arange(0., maximum+20, 20.0)
+        elif 20. < step <= 30.0:
+            ypos = np.arange(0., maximum+30, 30.0)
+        elif 30. < step <= 50.0:
+            ypos = np.arange(0., maximum+50, 50.0)
+        elif 50. < step <= 100.0:
+            ypos = np.arange(0., maximum+100, 100.0)
         else:
             ypos = np.arange(0., maximum+step, int(step+1))
     elif metric == 'PeakValueVsize':
@@ -139,6 +153,16 @@ def getYArray(metric, maximum):
     else: # TotalJobTime
         if step <= 500:
             ypos = np.arange(0, maximum+500, 500)
+        elif 500 < step <= 2000:
+            ypos = np.arange(0, maximum+2000, 2000)
+        elif 2000 < step <= 5000:
+            ypos = np.arange(0, maximum+5000, 5000)
+        elif 5000 < step <= 10000:
+            ypos = np.arange(0, maximum+10000, 10000)
+        elif 10000 < step <= 20000:
+            ypos = np.arange(0, maximum+20000, 20000)
+        elif 20000 < step <= 50000:
+            ypos = np.arange(0, maximum+50000, 50000)
         else:
             ypos = np.arange(0, maximum+step, int(step+1))
     return ypos
@@ -210,7 +234,7 @@ def makePlots(perf, worst):
                 print "xnames: ", xnames[step]
                 print "xvalues: ", xvalues[step]
                 print "yworst: ", yworst[step]
-                width = len(yworst[step]) * 1.5
+                width = len(yworst[step]) * 1.
                 fig = pp.figure(figsize=(width, 10))
                 #pp.title('CMSSW_X_Y_Z: '+step+' performance')
                 pp.title(step+': '+metric)
@@ -222,7 +246,7 @@ def makePlots(perf, worst):
                 ypos = getYArray(metric, max(yworst[step]))
                 pp.yticks(ypos)
                 ### Tweaking the figure
-                fig.subplots_adjust(bottom=0.5)           # Automatically adjust subplot parameters to give specified padding
+                fig.subplots_adjust(bottom=0.4)           # Automatically adjust subplot parameters to give specified padding
                 #pp.ylabel(metric)
                 #pp.grid(True)
                 pp.grid(True, which='major')
