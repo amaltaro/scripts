@@ -172,7 +172,7 @@ def getWorstValue(iniWorst, xvalues):
     Return the real worst case in the workflow, taking into consideration
     the worstOffenders and the xvalues list
     """
-    print "Is iniWorst (%f) > max(xvalues) (%r)\n" % (iniWorst, xvalues) 
+    print "Is iniWorst (%f) > max(xvalues) (%r)\n" % (iniWorst, xvalues)
     if iniWorst > (max(xvalues)):
         return iniWorst
     else:
@@ -205,27 +205,29 @@ def makePlots(perf, worst):
                 aux = aux.split('_')[4:]
                 shortWf = '_'.join(aux)
                 shortWf = shortWf[1:]
+                # Fix for when the worstOffenders list is empty, then set it to [0]
+                if not worst[wf][task][metric]:
+                    worst[wf][task][metric] = [0]
+                # Fix for when xvalues (aka val2[metric]) is an empty list, then set it to [0]
+                if not val2[metric]:
+                    val2[metric] = [0]
                 if steps[1] in task:
                     xnames[steps[1]].append(shortWf)
                     # it gets the mean of all values in the array
                     xvalues[steps[1]].append(np.mean(val2[metric]))
                     # Gets the worst of the worstOffenders only
-                    #yworst[steps[1]].append(max(worst[wf][task][metric]))
                     yworst[steps[1]].append(getWorstValue(max(worst[wf][task][metric]), val2[metric]))
                 elif steps[2] in task:
                     xnames[steps[2]].append(shortWf)
                     xvalues[steps[2]].append(np.mean(val2[metric]))
-                    #yworst[steps[2]].append(max(worst[wf][task][metric]))
                     yworst[steps[2]].append(getWorstValue(max(worst[wf][task][metric]), val2[metric]))
                 elif steps[3] in task:
                     xnames[steps[3]].append(shortWf)
                     xvalues[steps[3]].append(np.mean(val2[metric]))
-                    #yworst[steps[3]].append(max(worst[wf][task][metric]))
                     yworst[steps[3]].append(getWorstValue(max(worst[wf][task][metric]), val2[metric]))
                 else: # means GEN-SIM step
                     xnames[steps[0]].append(shortWf)
                     xvalues[steps[0]].append(np.mean(val2[metric]))
-                    #yworst[steps[0]].append(max(worst[wf][task][metric]))
                     yworst[steps[0]].append(getWorstValue(max(worst[wf][task][metric]), val2[metric]))
         for step in steps:
             # if here is one workflow for this step, then it must be plotted
@@ -234,24 +236,29 @@ def makePlots(perf, worst):
                 print "xnames: ", xnames[step]
                 print "xvalues: ", xvalues[step]
                 print "yworst: ", yworst[step]
-                width = len(yworst[step]) * 1.
+                width = len(yworst[step]) * 0.5
+                # width needs to be at least 3.5
+                if width < 3.5:
+                    width = 3.5
                 fig = pp.figure(figsize=(width, 10))
                 #pp.title('CMSSW_X_Y_Z: '+step+' performance')
                 pp.title(step+': '+metric)
-                pos = np.arange(len(xnames[step]))+0.5        # the bar centers on the x axis based on the # of workflows
-                pp.bar(pos, xvalues[step], ecolor='r', align='center')
-                pp.plot(pos, yworst[step], 'r.', markersize=11)
-                pp.xticks(pos, xnames[step], rotation=80)
+                pos = np.arange(len(xnames[step]))  # bars start in these points and have width=0.5
+                posticks = np.arange(len(xnames[step]))+0.25        # ticks are placed in the middle of the bars
+                print "pos: ", pos
+                pp.bar(pos, xvalues[step], ecolor='r', width=0.5)
+                pp.plot(posticks, yworst[step], 'r.', markersize=9)
+                pp.xticks(posticks, xnames[step], rotation=90)
                 # tweaking y axis
                 ypos = getYArray(metric, max(yworst[step]))
                 pp.yticks(ypos)
                 ### Tweaking the figure
-                fig.subplots_adjust(bottom=0.4)           # Automatically adjust subplot parameters to give specified padding
+                fig.subplots_adjust(left=0.18, bottom=0.4)           # Automatically adjust subplot parameters to give specified padding
                 #pp.ylabel(metric)
                 #pp.grid(True)
                 pp.grid(True, which='major')
                 filename = step+'_'+metric+'.png'
-                fig.savefig('/afs/cern.ch/work/a/amaltaro/www/testPlots/'+filename)
+                fig.savefig('/afs/cern.ch/work/a/amaltaro/www/testPlots/pileup/'+filename)
             else:
                 print "\nNothing to plot for: %s and %s\n" % (step, metric)
 
