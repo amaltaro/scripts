@@ -39,14 +39,45 @@ cmsdist()
     if [ -n "$BRANCH" ]; then
       echo "$PULL against comp branch? YES"
     else
-      echo "$PULL against comp branch? NO"
+      echo "$PULL against comp branch? NO! Skipping it ..."
+      continue
     fi
-    authdate=`curl -ks ${URL}/${PULL}.patch | head -n4 | egrep -o 'Date:.*' | cut -d: -f 2` 
-    author=`curl -ks ${URL}/${PULL}.patch | head -n4 | egrep -o 'From:.*' | cut -d: -f 2` 
-    title=`curl -ks ${URL}/${PULL}.patch | head -n4 | egrep -o '[PATCH].*' | cut -d" " -f 2-`
+    authdate=`curl -ks ${URL}/${PULL}.patch | head -n4 | egrep -o 'Date:.*' | cut -d: -f 2-` 
+    author=`curl -ks ${URL}/${PULL}.patch | head -n4 | egrep -o 'From:.*' | cut -d: -f 2-` 
+    title=`curl -ks ${URL}/${PULL}.patch | head -n4 | egrep -o '[PATCH].*' | cut -d"]" -f 2-`
     echo "Summary: authdate=$authdate, author=$author, title=$title"
+  
+    stg new -m "${title%\.}. Close #$PULL." pullreq-$PULL --author "$author" --authdate "$authdate" 
+    curl -ks ${URL}/${PULL}.patch | git apply --whitespace=fix
+    # When there are new files, we need to add them
+    stg add *
+    stg refresh
+
     echo ""
-  #stg new -m "${title%\.}. Close #$pullreq." pullreq-$pullreq --author "$author" --authdate "$authdate"; 
+    sleep 1
+  done
+}
+
+deployment()
+{
+  URL="https://github.com/${USER}/${REPO}/pull"
+
+  for PULL in $PULLS; do
+    echo "Pull: $URL/$PULL"
+
+    authdate=`curl -ks ${URL}/${PULL}.patch | head -n4 | egrep -o 'Date:.*' | cut -d: -f 2-`
+    author=`curl -ks ${URL}/${PULL}.patch | head -n4 | egrep -o 'From:.*' | cut -d: -f 2-`
+    title=`curl -ks ${URL}/${PULL}.patch | head -n4 | egrep -o '[PATCH].*' | cut -d"]" -f 2-`
+    echo "Summary: authdate=$authdate, author=$author, title=$title"
+
+    stg new -m "${title%\.}. Close #$PULL." pullreq-$PULL --author "$author" --authdate "$authdate"
+    curl -ks ${URL}/${PULL}.patch | git apply --whitespace=fix
+    # When there are new files, we need to add them
+    stg add *
+    stg refresh
+
+    echo ""
+    sleep 1
   done
 }
 
