@@ -1,0 +1,81 @@
+#!/bin/bash
+
+### Utilitarian script to retrieve log files from the cmsweb machines and
+### copy it under your own work AFS public area, with the correct permissions.
+###
+### Usage: retrieveLogs -h
+### Usage: retrieveLogs -s <service> -f <file name> -n <"list of hosts space separated"> -d <dirName> -a <AFS user>
+### Usage: Example: retrieveLogs -s phedex -f error_log_20131122.txt -n "vocms132 vocms133" -d forTony -a xblahx
+
+usage()
+{
+  perl -ne '/^### Usage:/ && do { s/^### ?//; print }' < $0
+  exit 1
+}
+
+help()
+{
+  perl -ne '/^###/ && do { s/^### ?//; print }' < $0
+  exit 0
+}
+
+### Create a directory under your AFS work public area and
+### setup permissions only for himself and the target user.
+setupDir()
+{
+  echo "Creating directory and setting up AFS permissions ..."
+  mkdir /afs/cern.ch/work/a/${USER}/public/$NEWDIR
+  if [ $? != "0" ]; then
+    exit 1
+  fi
+  fs sa /afs/cern.ch/work/a/${USER}/public/$NEWDIR $AFSUSER rl
+  fs sa /afs/cern.ch/work/a/${USER}/public/$NEWDIR system:anyuser none
+  fs sa /afs/cern.ch/work/a/${USER}/public/$NEWDIR system:administrators none
+  fs la /afs/cern.ch/work/a/${USER}/public/$NEWDIR
+}
+
+### Access the vocmsXXX machines and get the file size, if the user
+### accepts it to be transferred, then it copies the file to the dir
+### previously created and append the hostname to it
+getLogs()
+{
+  echo; echo "Hosts: $NODES"
+  echo "Files: $FILE"
+  echo "  from: /data/srv/logs/${SERVICE}/"
+  echo "  to:   /afs/cern.ch/work/a/${USER}/public/${NEWDIR}"; echo
+
+  for f in $FILE; do
+    for n in $NODES; do
+      result=`ssh ${USER}@${n}.cern.ch "ls -lh /data/srv/logs/${SERVICE}/${f}"`
+      if [ $? != "0" ]; then
+        echo "$n : File not found!"
+        continue
+      fi
+  
+      fileSize=`echo $result | grep data | awk '{print $5}'`
+      echo "Checking size on $n : $fileSize bytes"
+      read -p "Continue (y/n)? " choice
+      case "$choice" in 
+        y|Y ) true;;
+        * ) echo "no"; continue;;
+      esac
+      scp ${USER}@${n}.cern.ch:/data/srv/logs/${SERVICE}/${f} /afs/cern.ch/work/a/${USER}/public/${NEWDIR}/${f}_$n
+    done
+  done
+}
+
+for arg; do
+  case $arg in
+    -h) help ;;
+    -s) SERVICE=$2; shift; shift ;;
+    -f) FILE=$2; shift; shift ;;
+    -n) NODES=$2; shift; shift ;;
+    -d) NEWDIR=$2; shift; shift ;;
+    -a) AFSUSER=$2; shift; shift ;;
+    -*) usage ;;
+  esac
+done
+
+setupDir
+getLogs
+exit 0
