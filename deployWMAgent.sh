@@ -69,8 +69,9 @@ sleep 5
 echo "*** Tweaking configuration ***"
 sed -i "s+team1,team2,cmsdataops+$TEAMNAME+" $MANAGE/config.py
 sed -i "s+OP EMAIL+$OP_EMAIL+" $MANAGE/config.py
+sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = {'default' : 3, 'Merge' : 4, 'LogCollect' : 2, 'Cleanup' : 2}+" $MANAGE/config.py
 sed -i "s+config.PhEDExInjector.diskSites = \[\]+config.PhEDExInjector.diskSites = \['storm-fe-cms.cr.cnaf.infn.it','srm-cms-disk.gridpp.rl.ac.uk','cmssrm-kit.gridka.de','ccsrm.in2p3.fr'\]+" $MANAGE/config.py
-sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 2592000, 'Error': 1800+" $MANAGE/config.py
+sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 259200, 'Error': 1800+" $MANAGE/config.py
 echo "Done!" && echo
 
 #sed -i "s+LsfPluginJobGroup = '/groups/tier0/wmagent_testing'+LsfPluginJobGroup = '/groups/tier0/hufnagel/vocms104'+" ./config/tier0/config.py
@@ -80,27 +81,26 @@ echo "Done!" && echo
 ###
 # set resource thresholds
 ###
-# ./manage execute-agent wmagent-resource-control --add-all-sites  --plugin=CondorPlugin
-# ./manage execute-agent wmagent-resource-control --add-all-sites  --plugin=CondorPlugin --pending-slots=0 --running-slots=0
-
 echo "*** Populating resource-control ***"
 cd $MANAGE
-./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --cms-name=T2_CH_CERN --se-name=srm-eoscms.cern.ch --ce-name=T2_CH_CERN --pending-slots=1500 --running-slots=4000 --plugin=CondorPlugin
-./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=Processing --pending-slots=1500 --running-slots=4000
-./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=Production --pending-slots=1500 --running-slots=4000
-./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=Merge --pending-slots=100 --running-slots=100
-./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=Harvesting --pending-slots=10 --running-slots=20
-./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=Cleanup --pending-slots=100 --running-slots=100
-./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=LogCollect --pending-slots=100 --running-slots=100
-./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=Skim --pending-slots=100 --running-slots=100
-
-./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --cms-name=T1_US_FNAL --ce-name=T1_US_FNAL --se-name=cmssrm.fnal.gov --plugin=CondorPlugin --pending-slots=2000 --running-slots=5000
-./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Processing --pending-slots=2000 --running-slots=4000
-./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Production --pending-slots=2000 --running-slots=4000
-./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Merge --pending-slots=100 --running-slots=100
-./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Harvesting --pending-slots=10 --running-slots=20
-./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Cleanup --pending-slots=100 --running-slots=100
-./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=LogCollect --pending-slots=100 --running-slots=100
-./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Skim --pending-slots=100 --running-slots=100
+# ./manage execute-agent wmagent-resource-control --add-all-sites  --plugin=CondorPlugin
+./manage execute-agent wmagent-resource-control --add-all-sites  --plugin=CondorPlugin --pending-slots=50 --running-slots=50
+#./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --cms-name=T2_CH_CERN --se-name=srm-eoscms.cern.ch --ce-name=T2_CH_CERN --pending-slots=1500 --running-slots=4000 --plugin=CondorPlugin
+#./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=Processing --pending-slots=1500 --running-slots=4000
+#./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=Production --pending-slots=1500 --running-slots=4000
+#./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=Merge --pending-slots=100 --running-slots=100
+#./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=Harvesting --pending-slots=10 --running-slots=20
+#./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=Cleanup --pending-slots=100 --running-slots=100
+#./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=LogCollect --pending-slots=100 --running-slots=100
+#./manage execute-agent wmagent-resource-control --site-name=T2_CH_CERN --task-type=Skim --pending-slots=100 --running-slots=100
+#
+#./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --cms-name=T1_US_FNAL --ce-name=T1_US_FNAL --se-name=cmssrm.fnal.gov --plugin=CondorPlugin --pending-slots=2000 --running-slots=5000
+#./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Processing --pending-slots=2000 --running-slots=4000
+#./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Production --pending-slots=2000 --running-slots=4000
+#./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Merge --pending-slots=100 --running-slots=100
+#./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Harvesting --pending-slots=10 --running-slots=20
+#./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Cleanup --pending-slots=100 --running-slots=100
+#./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=LogCollect --pending-slots=100 --running-slots=100
+#./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Skim --pending-slots=100 --running-slots=100
 
 echo && echo "Deployment finished! Please take a look at the configuration and start-agent " && echo
