@@ -103,4 +103,4 @@ cd $MANAGE
 ./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=LogCollect --pending-slots=100 --running-slots=100
 ./manage execute-agent wmagent-resource-control --site-name=T1_US_FNAL --task-type=Skim --pending-slots=100 --running-slots=100
 
-echo "Deployment finished!" && echo
+echo && echo "Deployment finished! Please take a look at the configuration and start-agent " && echo
