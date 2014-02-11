@@ -9,7 +9,7 @@ PYTHON_WMA_DIR=$DEPLOY_DIR/v$WMA_TAG/sw.pre/$WMA_ARCH/cms/wmagent/$WMA_TAG/lib/p
 # TODO: change these values before deploying
 CMSWEB_TAG=HG1401h
 TEAMNAME='testbed-dataops'
-OP EMAIL=alan.malta@cern.ch
+OP_EMAIL=alan.malta@cern.ch
 WMA_TAG=0.9.91
 
 WMA_ARCH=slc5_amd64_gcc461
@@ -18,7 +18,9 @@ mkdir -p $DEPLOY_DIR || true
 
 cd $BASE_DIR
 rm -rf deployment
-git clone git://github.com/dmwm/deployment.git && cd deployment && git reset --hard $CMSWEB_TAG
+#git clone git://github.com/dmwm/deployment.git && cd deployment && git reset --hard $CMSWEB_TAG
+wget -O deployment.zip --no-check-certificate https://github.com/dmwm/deployment/archive/$CMSWEB_TAG.zip
+unzip -q deployment.zip && cd deployment-$CMSWEB_TAG
 
 echo " *** Removing the current crontab ***"
 crontab -r
@@ -58,8 +60,10 @@ sleep 5
 ###
 echo " *** Tweaking configuration ***"
 sed -i 's+team1,team2,cmsdataops+$TEAMNAME+' ./config/wmagent/config.py
-sed -i 's+OP EMAIL+$OP EMAIL+' ./config/wmagent/config.py
-sed -i "/config.PhEDExInjector.pollInterval/i config.PhEDExInjector.diskSites = ["storm-fe-cms.cr.cnaf.infn.it","srm-cms-disk.gridpp.rl.ac.uk", "cmssrm-fzk.gridka.de", "ccsrm.in2p3.fr"]" ./config/wmagent/config.py
+sed -i 's+OP EMAIL+$OP_EMAIL+' ./config/wmagent/config.py
+sed -i 's+config.PhEDExInjector.diskSites = []+config.PhEDExInjector.diskSites = ["storm-fe-cms.cr.cnaf.infn.it","srm-cms-disk.gridpp.rl.ac.uk","cmssrm-kit.gridka.de","ccsrm.in2p3.fr"]+' ./config/wmagent/config.py
+#sed -i 's+blah blah+config.JobStatusLite.stateTimeouts = {'Running': 169200, 'Pending': 259200, 'Error': 1800}+' ./config/wmagent/config.py
+#sed -i "/config.PhEDExInjector.pollInterval/i config.PhEDExInjector.diskSites = ["storm-fe-cms.cr.cnaf.infn.it","srm-cms-disk.gridpp.rl.ac.uk", "cmssrm-fzk.gridka.de", "ccsrm.in2p3.fr"]" ./config/wmagent/config.py
 
 #sed -i "s+LsfPluginJobGroup = '/groups/tier0/wmagent_testing'+LsfPluginJobGroup = '/groups/tier0/hufnagel/vocms104'+" ./config/tier0/config.py
 #sed -i "s+LsfPluginBatchOutput = 'None'+LsfPluginBatchOutput = '/afs/cern.ch/user/h/hufnagel/scratch0/tier0_logs'+" ./config/tier0/config.py
