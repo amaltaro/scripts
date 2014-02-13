@@ -77,7 +77,8 @@ sed -i "s+config.PhEDExInjector.diskSites = \[\]+config.PhEDExInjector.diskSites
 sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 259200, 'Error': 1800+" $MANAGE/config.py
 
 sed -i "s+BossAir.pluginNames = \['CondorPlugin'\]+BossAir.pluginNames = \['LsfPlugin'\]+" $MANAGE/config.py
-sed -i "s+BossAir.submitWMSMode = True+BossAir.submitWMSMode = False+" $MANAGE/config.py
+sed -i "s+SquaredAlgo+DefaultRetryAlgo+" $MANAGE/config.py
+sed -i "s+coolOffTime = {'create': 5000, 'job': 5000, 'submit': 5000}+coolOffTime = {'create': 3600, 'job': 3600, 'submit': 3600}+" $MANAGE/config.py
 sed -i '/config.JobSubmitter.pollInterval/i config.JobSubmitter.LsfPluginBatchOutput = "/afs/cern.ch/work/r/relval/lsf-wma/logs/"' $MANAGE/config.py
 sed -i '/config.JobSubmitter.pollInterval/i config.JobSubmitter.LsfPluginJobGroup = "/groups/tier0/wmagent_vocms174"' $MANAGE/config.py
 sed -i '/config.JobSubmitter.pollInterval/i config.JobSubmitter.LsfPluginResourceReq = "select[type==SLC5_64] rusage[pool=20000,mem=2000]"' $MANAGE/config.py
