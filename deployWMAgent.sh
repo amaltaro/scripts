@@ -57,6 +57,7 @@ sleep 5
 echo "*** Applying patches ***"
 cd $CURRENT
 wget https://github.com/dmwm/WMCore/pull/4954.patch -O - | patch -d sw/slc5_amd64_gcc461/cms/wmagent/$WMA_TAG/ -p 1 # for deployment
+wget https://github.com/dmwm/WMCore/pull/4959.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages -p 3   # stage in bug at FNAL
 
 echo "*** Initializing the agent ***"
 cd $MANAGE
