@@ -46,6 +46,10 @@ echo "Done!" && echo
 
 # TODO: if the agent uses Oracle, then we need to clean up it
 
+### Enabling couch watchdog:
+echo "*** Enabling couch watchdog ***"
+sed -i "s+RESPAWN_TIMEOUT=0+RESPAWN_TIMEOUT=5+" $CURRENT/sw/$WMA_ARCH/external/couchdb/*/bin/couchdb
+
 echo "*** Starting services ***"
 ./manage start-services
 echo "Done!" && echo
@@ -58,9 +62,9 @@ echo "*** Applying patches ***"
 cd $CURRENT
 wget https://github.com/dmwm/WMCore/pull/4954.patch -O - | patch -d sw/slc5_amd64_gcc461/cms/wmagent/$WMA_TAG/ -p 1 # for deployment
 wget https://github.com/dmwm/WMCore/pull/4959.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages -p 3   # stage in bug at FNAL
+cd -
 
 echo "*** Initializing the agent ***"
-cd $MANAGE
 ./manage init-agent
 echo "Done!" && echo
 sleep 5
