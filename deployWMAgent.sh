@@ -12,6 +12,8 @@ CMSWEB_TAG=HG1401h
 TEAMNAME=testbed-production
 OP_EMAIL=alan.malta@cern.ch
 WMA_TAG=0.9.91
+GLOBAL_DBS_URL=https://cmsweb-testbed.cern.ch/dbs/int/global/DBSReader 
+#GLOBAL_DBS_URL=https://cmsweb.cern.ch/dbs/prod/global/DBSReader
 
 WMA_ARCH=slc5_amd64_gcc461
 
@@ -78,6 +80,7 @@ sed -i "s+OP EMAIL+$OP_EMAIL+" $MANAGE/config.py
 sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = {'default' : 3, 'Merge' : 4, 'LogCollect' : 2, 'Cleanup' : 2}+" $MANAGE/config.py
 sed -i "s+config.PhEDExInjector.diskSites = \[\]+config.PhEDExInjector.diskSites = \['storm-fe-cms.cr.cnaf.infn.it','srm-cms-disk.gridpp.rl.ac.uk','cmssrm-kit.gridka.de','ccsrm.in2p3.fr'\]+" $MANAGE/config.py
 sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 259200, 'Error': 1800+" $MANAGE/config.py
+sed -i "s+config.DBSInterface.globalDBSUrl = 'https://cmsdbsprod.cern.ch:8443/cms_dbs_prod_global_writer/servlet/DBSServlet'+config.DBSInterface.globalDBSUrl = '$globalDBSUrl'+" $MANAGE/config.py
 echo "Done!" && echo
 
 ###

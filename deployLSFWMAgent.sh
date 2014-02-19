@@ -12,6 +12,7 @@ CMSWEB_TAG=HG1401h
 TEAMNAME=relvallsf
 OP_EMAIL=alan.malta@cern.ch
 WMA_TAG=0.9.91
+GLOBAL_DBS_URL=https://cmsweb.cern.ch/dbs/prod/global/DBSReader
 
 WMA_ARCH=slc5_amd64_gcc461
 
@@ -46,6 +47,9 @@ cd $MANAGE
 echo "Done!" && echo
 
 # TODO: if the agent uses Oracle, then we need to clean up it
++### Enabling couch watchdog:
+echo "*** Enabling couch watchdog ***"
+sed -i "s+RESPAWN_TIMEOUT=0+RESPAWN_TIMEOUT=5+" $CURRENT/sw/$WMA_ARCH/external/couchdb/*/bin/couchdb
 
 echo "*** Starting services ***"
 ./manage start-services
@@ -75,6 +79,7 @@ sed -i "s+OP EMAIL+$OP_EMAIL+" $MANAGE/config.py
 sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = {'default' : 3, 'Merge' : 4, 'LogCollect' : 2, 'Cleanup' : 2}+" $MANAGE/config.py
 sed -i "s+config.PhEDExInjector.diskSites = \[\]+config.PhEDExInjector.diskSites = \['storm-fe-cms.cr.cnaf.infn.it','srm-cms-disk.gridpp.rl.ac.uk','cmssrm-kit.gridka.de','ccsrm.in2p3.fr'\]+" $MANAGE/config.py
 sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 259200, 'Error': 1800+" $MANAGE/config.py
+sed -i "s+config.DBSInterface.globalDBSUrl = 'https://cmsdbsprod.cern.ch:8443/cms_dbs_prod_global_writer/servlet/DBSServlet'+config.DBSInterface.globalDBSUrl = '$GLOBAL_DBS_URL'+" $MANAGE/config.py
 
 sed -i "s+BossAir.pluginNames = \['CondorPlugin'\]+BossAir.pluginNames = \['LsfPlugin'\]+" $MANAGE/config.py
 sed -i "s+SquaredAlgo+DefaultRetryAlgo+" $MANAGE/config.py
