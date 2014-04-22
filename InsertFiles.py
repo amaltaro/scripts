@@ -23,26 +23,37 @@ voms-proxy-init -voms cms
 import pprint
 from dbs.apis.dbsClient import DbsApi
 import uuid
+import time, sys
 
 
 def createEmptyBlock(ds_info, origin_site_name):
-
-    acquisition_era_config = {'acquisition_era_name':'CRAB', 'start_date':0}
-    processing_era_config = {'processing_version': 1, 'description': 'LHE_Injection'}
-    primds_config = {'primary_ds_type': 'mc', 'primary_ds_name': ds_info['primary_ds']}
+    acquisition_era_config = {'acquisition_era_name':'CRAB', 'start_date':1954}
+    processing_era_config = {
+        'create_by': 'Alan',
+        'processing_version': 1,
+        'description': 'test_LHE_injection'}
+    primds_config = {
+        'create_by': 'Alan',
+        'creation_date': int(time.time()),
+        #'primary_ds_type': 'mc',
+        'primary_ds_type': 'test',
+        'primary_ds_name': ds_info['primary_ds']}
 
     dataset = "/%s/%s/%s" % (ds_info['primary_ds'],ds_info['processed_ds'],ds_info['tier'])
-
     dataset_config = {
         'physics_group_name': ds_info['group'],
         'dataset_access_type': 'VALID',
         'data_tier_name': ds_info['tier'],
         'processed_ds_name':ds_info['processed_ds'],
+        'create_by': 'Alan',
+        'creation_date': int(time.time()),
         'dataset': dataset }
 
     block_name = "%s#%s" % (dataset, str(uuid.uuid4()))
     block_config = {'block_name': block_name, \
-                        'origin_site_name': origin_site_name,\
+                        'origin_site_name': origin_site_name, \
+                        'create_by': 'Alan', \
+                        'creation_date': int(time.time()), \
                         'open_for_writing': 0}
 
     dataset_conf_list = [{'app_name': ds_info['application'],
@@ -77,13 +88,14 @@ def addFilesToBlock(blockDict, files):
 #===============================================================
 
 #pick a DBS3 instance
-#instance = 'dev'
-instance = 'int'
+instance = 'dev'
+#instance = 'int'
 #instance = 'prod'
 
 
 if instance=='dev':
-    host = 'dbs3-dev01.cern.ch'
+    #host = 'dbs3-dev01.cern.ch'
+    host = 'cmsweb-dev.cern.ch'
 
 if instance=='int':
     host = 'cmsweb-testbed.cern.ch'
@@ -96,6 +108,8 @@ globWriteUrl = 'https://%s/dbs/%s/global/DBSWriter' % (host, instance)
 phy3ReadUrl = 'https://%s/dbs/%s/phys03/DBSReader' % (host, instance)
 phy3WriteUrl = 'https://%s/dbs/%s/phys03/DBSWriter' % (host, instance)
 
+#readApi   = DbsApi(url=globReadUrl)
+#writeApi  = DbsApi(url=globWriteUrl)
 readApi   = DbsApi(url=phy3ReadUrl)
 writeApi  = DbsApi(url=phy3WriteUrl)
 
@@ -104,18 +118,19 @@ writeApi  = DbsApi(url=phy3WriteUrl)
 
 # almost free text here, but beware WMCore/Lexicon.py
 dataset_info = {
-    'primary_ds'    : 'Photon',
-    'processed_ds'  : 'MuMu-testSB-v1',
+    'primary_ds'    : 'QCD_HT-100To250_8TeV-madgraph',
+    'processed_ds'  : 'CRAB-testAlan_Attempt1-v1',
     'tier'          : 'LHE',
     'group'         : 'GEN',
-    'campaign_name' : 'Spring2014',
+    'campaign_name' : 'CRAB',
     'application'   : 'Madgraph',
-    'app_version'   : 'Mad_20_20_20',
+    'app_version'   : 'Mad_5_1_3_30',
 }
-origin_site_name = 'cmseos.cern.ch'
+origin_site_name = 'srm-eoscms.cern.ch'
 
 # in following line: no / at beginning but / at the end
-directory_path='9986/and_some-text_maybe/foo/babar/'
+# corresponds to the directory in EOS after /store/lhe
+directory_path='5475/'
 assert(directory_path[0]  != '/')
 assert(directory_path[-1] == '/')
 
@@ -124,7 +139,7 @@ assert(directory_path[-1] == '/')
 
 
 # PREPARE COMMON ADDITIONAL INFORMATION FOR FILES
-common_lfn_prefix = '/store/mc/lhe/'
+common_lfn_prefix = '/store/lhe/'
 common_file_type  = 'LHE'
 common_dummy_lumi = [{'lumi_section_num': 1, 'run_num': 1}]
 
@@ -132,18 +147,16 @@ common_dummy_lumi = [{'lumi_section_num': 1, 'run_num': 1}]
 # GET INPUT FILES LIST
 # NOTE THAT CURRENTLY FILENAME HAS TO END WITH .root
 
-# prepare n_files dummy input files
-n_files = 10
+myListFiles=['QCD_HT-100To250_8TeV-madgraph_10001.lhe']
 inputFiles=[]
-for i in range(n_files):
-    aUID = uuid.uuid4().hex[0:9]
-    aFile ={'name':"file%s-%s.root" % (i,aUID),\
-                'event_count':i+1000,\
-                'file_size':1024,\
-                'check_sum': 'NOTSET',\
-                'adler32':'deadbeef'}
+for i in myListFiles:
+    aFile ={'name':"%s" % i, \
+                'event_count': 1000000, \
+                'file_size': 85246505, \
+                'check_sum': '2291210323', \
+                #'adler32':'deadbeef'}
+                'adler32':'NOTSET'}
     inputFiles.append(aFile)
-
 
 
 # LOOP ON ALL FILES, CREATE BLOCKS AND INSERT THEM
@@ -171,7 +184,9 @@ for file in inputFiles:
     if files_in_block == max_files_in_block:
         blockDict = addFilesToBlock(blockDict, files)
         print "insert block in DBS3: %s" % writeApi.url
+        print "ALAN: just before writing to DBS."
         pprint.pprint(blockDict)
+        sys.exit(0)
         writeApi.insertBulkBlock(blockDict)
         files_in_block = 0
     
@@ -182,6 +197,8 @@ for file in inputFiles:
 if files_in_block:
     blockDict = addFilesToBlock(blockDict, files)
     print "insert block in DBS3: %s" % writeApi.url
+    print "ALAN: leftovers just before writing to DBS."
     pprint.pprint(blockDict)
+    sys.exit(0)
     writeApi.insertBulkBlock(blockDict)
 
