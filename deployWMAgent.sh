@@ -31,15 +31,15 @@ echo "Done!" && echo
 echo "*** Bootstrapping WMAgent: prep ***"
 source $ENV_FILE;
 (cd $BASE_DIR/deployment-$CMSWEB_TAG
-./Deploy -R wmagent@$WMA_TAG -s prep -A $WMA_ARCH -t v$WMA_TAG /data/srv/wmagent wmagent) && echo
+./Deploy -R wmagent@$WMA_TAG -s prep -A $WMA_ARCH -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
 
 echo "*** Deploying WMAgent: sw ***"
 (cd $BASE_DIR/deployment-$CMSWEB_TAG
-./Deploy -R wmagent@$WMA_TAG -s sw -A $WMA_ARCH -t v$WMA_TAG /data/srv/wmagent wmagent) && echo
+./Deploy -R wmagent@$WMA_TAG -s sw -A $WMA_ARCH -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
 
 echo "*** Posting WMAgent: post ***"
 (cd $BASE_DIR/deployment-$CMSWEB_TAG
-./Deploy -R wmagent@$WMA_TAG -s post -A $WMA_ARCH -t v$WMA_TAG /data/srv/wmagent wmagent) && echo
+./Deploy -R wmagent@$WMA_TAG -s post -A $WMA_ARCH -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
 
 echo "*** Activating the agent ***"
 cd $MANAGE
@@ -62,8 +62,13 @@ sleep 5
 ###
 echo "*** Applying patches ***"
 cd $CURRENT
-wget https://github.com/dmwm/WMCore/pull/4954.patch -O - | patch -d sw/slc5_amd64_gcc461/cms/wmagent/$WMA_TAG/ -p 1 # for deployment
+wget https://github.com/dmwm/WMCore/pull/4954.patch -O - | patch -d sw/slc5_amd64_gcc461/cms/wmagent/$WMA_TAG -p 1 # for deployment
+wget https://github.com/dmwm/WMCore/pull/5082.patch -O - | patch -d sw/slc5_amd64_gcc461/cms/wmagent/$WMA_TAG -p 1 # remove Disk from resource-control
 wget https://github.com/dmwm/WMCore/pull/4959.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages -p 3   # stage in bug at FNAL
+wget https://github.com/dmwm/WMCore/pull/4988.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages -p 3   # fix dbsbuffer not associating...
+wget https://github.com/dmwm/WMCore/pull/5023.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages -p 3   # fix open block query
+wget https://github.com/dmwm/WMCore/pull/5038.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages -p 3   # set FRONTIER_ID
+wget https://github.com/dmwm/WMCore/pull/5026.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages -p 3   # FNAL TFC change
 cd -
 
 echo "*** Initializing the agent ***"
