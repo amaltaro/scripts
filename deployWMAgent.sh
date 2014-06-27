@@ -74,8 +74,7 @@ wget https://github.com/dmwm/WMCore/commit/1dc5ba5b593dacf9c171e993972fa0035d501
 wget https://github.com/dmwm/WMCore/pull/5110.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fix for PreMixing
 wget https://github.com/dmwm/WMCore/pull/5117.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fix for DQMIO tier
 wget https://github.com/dmwm/WMCore/pull/5130.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fix Sandbox creation
-wget https://github.com/dmwm/WMCore/commit/e7d6b2cc0896ef74aabbdd70094bd04db4067d5b.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # includes checks for CVMFS detection
-#wget https://github.com/dmwm/WMCore/commit/e7d6b2cc0896ef74aabbdd70094bd04db4067d5b.patch -O - | patch -d apps/wmagent -p 1
+wget https://github.com/dmwm/WMCore/commit/e7d6b2cc0896ef74aabbdd70094bd04db4067d5b.patch -O - | patch -d apps/wmagent/ -p 1 # includes checks for CVMFS detection
 wget https://github.com/dmwm/WMCore/pull/5198.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # add check for non-existing jobAd
 wget https://github.com/dmwm/WMCore/pull/5199.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fixes a bug in condor plugin
 cd -
