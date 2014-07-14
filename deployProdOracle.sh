@@ -1,66 +1,42 @@
 #!/bin/bash
 
+### This script downloads a CMSWEB deployment tag and then use the Deploy script
+### with the arguments provided in the command line to deploy WMAgent in a VOBox.
+### It deploys the agent, apply all the required patches (which must be defined
+### in the code), populate the resource-control database, apply final tweaks to
+### the configuration and finally, download and create some utilitarian cronjobs.
+###
+### Usage: deployProdOracle.sh -h
+### Usage: deployProdOracle.sh -w <wma_version> -c <cmsweb_tag> -s <scram_arch> -t <team_name> -f <DB_flavor>
+### Usage: Example: deployProdOracle.sh -w 0.9.95b -c HG1406e -s slc5_amd64_gcc461 -t step0 -f oracle
+
 BASE_DIR=/data/srv 
 DEPLOY_DIR=$BASE_DIR/wmagent 
 ENV_FILE=/data/admin/wmagent/env.sh 
 CURRENT=/data/srv/wmagent/current
 MANAGE=/data/srv/wmagent/current/config/wmagent/ 
-PYTHON_WMA_DIR=$DEPLOY_DIR/v$WMA_TAG/sw/$WMA_ARCH/cms/wmagent/$WMA_TAG/lib/python2.6/site-packages 
-
-# TODO: read it from command line
-CMSWEB_TAG=HG1406e 
-TEAMNAME=step0
 OP_EMAIL=alan.malta@cern.ch
-WMA_TAG=0.9.95b
 GLOBAL_DBS_URL=https://cmsweb.cern.ch/dbs/prod/global/DBSReader
-WMA_ARCH=slc5_amd64_gcc461
 
-echo "Starting new agent deployment with the following data:"
-echo " - WMAgent version: $WMA_TAG"
-echo " - WMAgent Arch   : $WMA_ARCH"
-echo " - CMSWEB tag     : $CMSWEB_TAG"
-echo " - Team name      : $TEAMNAME" && echo
+### Usage function: print the usage of the script
+usage()
+{
+  perl -ne '/^### Usage:/ && do { s/^### ?//; print }' < $0
+  exit 1
+}
 
-mkdir -p $DEPLOY_DIR || true
-cd $BASE_DIR
-rm -rf deployment deployment.zip deployment-${CMSWEB_TAG};
-wget -nv -O deployment.zip --no-check-certificate https://github.com/dmwm/deployment/archive/$CMSWEB_TAG.zip;
-unzip -q deployment.zip && cd deployment-$CMSWEB_TAG
+### Help function: print help for this script
+help()
+{
+  perl -ne '/^###/ && do { s/^### ?//; print }' < $0
+  exit 0
+}
 
-echo "*** Removing the current crontab ***"
-/usr/bin/crontab -r;
-echo "Done!" && echo
-
-echo "*** Bootstrapping WMAgent: prep ***"
-source $ENV_FILE;
-(cd $BASE_DIR/deployment-$CMSWEB_TAG
-./Deploy -R wmagent@$WMA_TAG -s prep -A $WMA_ARCH -t v$WMA_TAG /data/srv/wmagent wmagent) && echo
-
-echo "*** Deploying WMAgent: sw ***"
-(cd $BASE_DIR/deployment-$CMSWEB_TAG
-./Deploy -R wmagent@$WMA_TAG -s sw -A $WMA_ARCH -t v$WMA_TAG /data/srv/wmagent wmagent) && echo
-
-echo "*** Posting WMAgent: post ***"
-(cd $BASE_DIR/deployment-$CMSWEB_TAG
-./Deploy -R wmagent@$WMA_TAG -s post -A $WMA_ARCH -t v$WMA_TAG /data/srv/wmagent wmagent) && echo
-
-
-echo "*** Applying deplyment patches ***"
-cd $CURRENT
-wget -nv https://github.com/dmwm/WMCore/pull/5217.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # temp fix for lumi report on workloadsummary
-cd -
-echo "Done!" && echo
-
-echo "*** Activating the agent ***"
-cd $MANAGE
-./manage activate-agent
-echo "Done!" && echo
-
-# TODO: provide the flavor also in command line
-# TODO: if the agent uses Oracle, then we need to clean up it
-echo "*** Cleaning up Oracle instance ***"
-cd $CURRENT/config/wmagent/
-cat > clean-oracle.sql << EOT
+### Cleanup function: it cleans up the oracle database
+cleanup_oracle()
+{
+  cd $CURRENT/config/wmagent/
+  cat > clean-oracle.sql << EOT
 BEGIN
    FOR cur_rec IN (SELECT object_name, object_type
                         FROM user_objects
@@ -104,18 +80,94 @@ END;
 
 EOT
 
-while true; do
+  while true; do
     tmpf=`mktemp`
     ./manage db-prompt < clean-oracle.sql > $tmpf
     if grep -iq "PL/SQL procedure successfully completed" $tmpf; then
-        break
-    fi        
+      break
+    fi
+  done
+  rm -f $tmpf
+  echo -e "PURGE RECYCLEBIN;\nselect tname from tab;" > purging.sql
+  ./manage db-prompt < purging.sql
+  rm -f clean-oracle.sql purging.sql
+  echo "Done!" && echo
+}
+
+for arg; do
+  case $arg in
+    -h) help ;;
+    -w) WMA_TAG=$2; shift; shift ;;
+    -c) CMSWEB_TAG=$2; shift; shift ;;
+    -s) WMA_ARCH=$2; shift; shift ;;
+    -t) TEAMNAME=$2; shift; shift ;;
+    -f) FLAVOR=$2; shift; shift ;;
+    -*) usage ;;
+  esac
 done
-rm -f $tmpf
-echo -e "PURGE RECYCLEBIN;\nselect tname from tab;" > purging.sql
-./manage db-prompt < purging.sql
-rm -f clean-oracle.sql purging.sql
+
+if [[ -z $WMA_TAG ]] || [[ -z $CMSWEB_TAG ]] || [[ -z $WMA_ARCH ]] || [[ -z $TEAMNAME ]] || [[ -z $FLAVOR ]]; then
+  usage
+  exit 1
+fi
+
+if [ "$FLAVOR" == "oracle" ] || [ "$FLAVOR" == "mysql" ]; then
+  : # or should it be pass ?
+else
+  echo "ERROR: Backend database unknown. Choose either 'mysql' or 'oracle'."
+  usage
+  exit 2
+fi
+
+echo "Starting new agent deployment with the following data:"
+echo " - WMAgent version: $WMA_TAG"
+echo " - WMAgent Arch   : $WMA_ARCH"
+echo " - CMSWEB tag     : $CMSWEB_TAG"
+echo " - Team name      : $TEAMNAME"
+echo " - DB Flavor      : $FLAVOR" && echo
+
+mkdir -p $DEPLOY_DIR || true
+cd $BASE_DIR
+rm -rf deployment deployment.zip deployment-${CMSWEB_TAG};
+wget -nv -O deployment.zip --no-check-certificate https://github.com/dmwm/deployment/archive/$CMSWEB_TAG.zip;
+unzip -q deployment.zip && cd deployment-$CMSWEB_TAG
+
+echo "*** Removing the current crontab ***"
+/usr/bin/crontab -r;
 echo "Done!" && echo
+
+echo "*** Bootstrapping WMAgent: prep ***"
+source $ENV_FILE;
+(cd $BASE_DIR/deployment-$CMSWEB_TAG
+./Deploy -R wmagent@$WMA_TAG -s prep -A $WMA_ARCH -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
+
+echo "*** Deploying WMAgent: sw ***"
+(cd $BASE_DIR/deployment-$CMSWEB_TAG
+./Deploy -R wmagent@$WMA_TAG -s sw -A $WMA_ARCH -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
+
+echo "*** Posting WMAgent: post ***"
+(cd $BASE_DIR/deployment-$CMSWEB_TAG
+./Deploy -R wmagent@$WMA_TAG -s post -A $WMA_ARCH -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
+
+### TODO: You have to manually add patches here
+echo "*** Applying deplyment patches ***"
+cd $CURRENT
+wget -nv https://github.com/dmwm/WMCore/pull/5217.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # temp fix for lumi report on workloadsummary
+cd -
+echo "Done!" && echo
+
+echo "*** Activating the agent ***"
+cd $MANAGE
+./manage activate-agent
+echo "Done!" && echo
+
+### Checking the database backend
+echo "*** Cleaning up database instance ***"
+if [ "$FLAVOR" == "oracle" ]; then
+  cleanup_oracle
+elif [ "$FLAVOR" == "mysql" ]; then
+  echo "Mysql, nothing to clean up" && echo
+fi
 
 ### Enabling couch watchdog:
 echo "*** Enabling couch watchdog ***"
@@ -154,6 +206,7 @@ echo "Done!" && echo
 ###
 echo "*** Downloading utilitarian scripts ***"
 cd $CURRENT
+### TODO: this cp will NOT work at FNAL
 cp /afs/cern.ch/user/j/jbadillo/public/rmOldJobs.sh ./
 wget -nv --no-check-certificate https://raw.github.com/CMSCompOps/WmAgentScripts/master/updateSiteStatus.py
 wget -nv --no-check-certificate https://raw.github.com/CMSCompOps/WmAgentScripts/master/thresholdsFromSSB.py
