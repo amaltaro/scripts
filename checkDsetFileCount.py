@@ -7,8 +7,6 @@ import json, sys
 import pprint
 
 main_url        = "https://cmsweb.cern.ch"
-couch_workload  = main_url + "/couchdb/workloadsummary/"
-couch_reqmgr    = main_url + "/couchdb/reqmgr_workload_cache/"
 phedex_url      = main_url + "/phedex/datasvc/json/prod/"
 dbs_url         = main_url + "/dbs/prod/global/DBSReader/"
 
@@ -72,26 +70,38 @@ def dbs_info(dataset, cert):
 
 def main(argv=None):
     """
-    Receive a dataset name and proxy location and then gets information
-    from the following sources:
+    Receive either a dataset name or a logical file name
+    and proxy location. Then it queries the following data
+    services:
      - phedex : gets number of files
      - dbs    : gets the number of valid, invalid and total files
+
+    It returns the number of files for this dataset/lfn available
+    in PhEDEx and DBS
     """
 
     usage = "usage: %prog -d dataset_name -p proxy_location"
     parser = OptionParser(usage=usage)
     parser.add_option('-d', '--dataset', help='Dataset name',dest='dataset')
+    parser.add_option('-l', '--lfn', help='Logical file name',dest='lfn')
     parser.add_option('-p', '--proxy', help='Path to your proxy or cert location',dest='proxy')
     (options, args) = parser.parse_args()
-    if not (options.dataset and options.proxy):
-        parser.error("Please supply dataset name and certificate location")
+    if not ((options.dataset or options.lfn) and options.proxy):
+        parser.error("Please supply either dataset name or file name \
+                      and certificate location")
         sys.exit(1)
-    dataset = options.dataset
+    if options.dataset: 
+        dataset = options.dataset
+    if options.lfn:
+        lfn = options.lfn
+        lfnAux = lfn.split ('/')
+        dataset = '/'+lfnAux[4]+'/'+lfnAux[3]+'-'+lfnAux[6]+'/'+lfnAux[5]
     cert = options.proxy
+
+    print "Dataset: %s" % dataset
 
     phedex_out = phedex_info(dataset, cert)
     dbs_out = dbs_info(dataset, cert)
-
     phedex_files = 0
     for item in phedex_out["phedex"]["block"]:
         phedex_files += item['files']
