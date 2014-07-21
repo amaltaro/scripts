@@ -7,14 +7,15 @@
 ### the configuration and finally, download and create some utilitarian cronjobs.
 ###
 ### Usage: deployProd.sh -h
-### Usage: deployProd.sh -w <wma_version> -c <cmsweb_tag> -s <scram_arch> -t <team_name> -n <agent_number> -f <DB_flavor>
-### Usage: Example: deployProd.sh -w 0.9.95b -c HG1406e -s slc5_amd64_gcc461 -t step0 -f oracle
+### Usage: ./deployProd.sh -w <wma_version> -c <cmsweb_tag> -s <scram_arch> -t <team_name> -n <agent_number> -f <DB_flavor>
+### Usage: Example: ./deployProd.sh -w 0.9.95b -c HG1406e -s slc5_amd64_gcc461 -t step0 -f oracle
 ###
 ### TODO:
 ###  - automatize the clean up of the old agent
 ###  - automatize the way we fetch patches
 ###  - automatize crontab population
-###  - distinguish maxRetries for MC and Reproc agents 
+### TODO (improvements): 
+###  - maxRetries is currently based on team name (hard-coded, reproc_lowprio or others...) 
  
 BASE_DIR=/data/srv 
 DEPLOY_DIR=$BASE_DIR/wmagent 
@@ -161,8 +162,8 @@ echo "*** Posting WMAgent: post ***"
 ### TODO: You have to manually add patches here
 echo "*** Applying deployment patches ***"
 cd $CURRENT
-wget -nv https://github.com/ticoann/WMCore/commit/e30bd067d2733745e1cbb70af7488156ce484fee.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # sanitize couch url logs
 wget -nv https://github.com/dmwm/WMCore/pull/5217.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # temp fix for lumi report on workloadsummary
+wget -nv https://github.com/dmwm/WMCore/pull/5229.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # sanitize couch url logs
 cd -
 echo "Done!" && echo
 
@@ -201,9 +202,14 @@ echo "*** Tweaking configuration ***"
 sed -i "s+team1,team2,cmsdataops+$TEAMNAME+" $MANAGE/config.py
 sed -i "s+Agent.agentNumber = 0+Agent.agentNumber = $AG_NUM+" $MANAGE/config.py
 sed -i "s+OP EMAIL+$OP_EMAIL+" $MANAGE/config.py
-sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Harvesting' : 2, 'Merge' : 4, 'LogCollect' : 1, 'Cleanup' : 2\}+" $MANAGE/config.py
+sed -i "/config.ErrorHandler.pollInterval = 240/a config.ErrorHandler.maxProcessSize = 30" $MANAGE/config.py
 sed -i "s+config.PhEDExInjector.diskSites = \[\]+config.PhEDExInjector.diskSites = \['storm-fe-cms.cr.cnaf.infn.it','srm-cms-disk.gridpp.rl.ac.uk','cmssrm-fzk.gridka.de','ccsrm.in2p3.fr','srmcms.pic.es','cmssrmdisk.fnal.gov'\]+" $MANAGE/config.py
 sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 259200, 'Error': 1800+" $MANAGE/config.py
+if [ "$TEAMNAME" == "reproc_lowprio" ]; then
+  sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Merge' : 4, 'LogCollect' : 2, 'Cleanup' : 2\}+" $MANAGE/config.py
+else
+  sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Harvesting' : 2, 'Merge' : 4, 'LogCollect' : 1, 'Cleanup' : 2\}+" $MANAGE/config.py
+fi
 echo "Done!" && echo
 
 echo "*** Populating resource-control ***"
