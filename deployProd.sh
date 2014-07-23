@@ -164,6 +164,7 @@ echo "*** Applying deployment patches ***"
 cd $CURRENT
 wget -nv https://github.com/dmwm/WMCore/pull/5217.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # temp fix for lumi report on workloadsummary
 wget -nv https://github.com/dmwm/WMCore/pull/5229.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # sanitize couch url logs
+wget -nv https://github.com/dmwm/WMCore/pull/5237.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fix dataset name in summary db
 cd -
 echo "Done!" && echo
 
@@ -205,7 +206,7 @@ sed -i "s+OP EMAIL+$OP_EMAIL+" $MANAGE/config.py
 sed -i "/config.ErrorHandler.pollInterval = 240/a config.ErrorHandler.maxProcessSize = 30" $MANAGE/config.py
 sed -i "s+config.PhEDExInjector.diskSites = \[\]+config.PhEDExInjector.diskSites = \['storm-fe-cms.cr.cnaf.infn.it','srm-cms-disk.gridpp.rl.ac.uk','cmssrm-fzk.gridka.de','ccsrm.in2p3.fr','srmcms.pic.es','cmssrmdisk.fnal.gov'\]+" $MANAGE/config.py
 sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 259200, 'Error': 1800+" $MANAGE/config.py
-if [ "$TEAMNAME" == "reproc_lowprio" ]; then
+if [ [ "$TEAMNAME" == "reproc_lowprio" ] || [ "$TEAMNAME" == "relval_cern" ] ]; then
   sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Merge' : 4, 'LogCollect' : 2, 'Cleanup' : 2\}+" $MANAGE/config.py
 else
   sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Harvesting' : 2, 'Merge' : 4, 'LogCollect' : 1, 'Cleanup' : 2\}+" $MANAGE/config.py
@@ -214,8 +215,14 @@ echo "Done!" && echo
 
 echo "*** Populating resource-control ***"
 cd $MANAGE
-echo "\$manage execute-agent wmagent-resource-control --add-all-sites --plugin=CondorPlugin --pending-slots=50 --running-slots=50"
-./manage execute-agent wmagent-resource-control --add-all-sites  --plugin=CondorPlugin --pending-slots=50 --running-slots=50
+if [ "$TEAMNAME" == "relval_cern" ]; then
+  echo "Adding only T1 and T2 sites to resource-control..."
+  ./manage execute-agent wmagent-resource-control --add-T1s --plugin=CondorPlugin --pending-slots=50 --running-slots=50
+  ./manage execute-agent wmagent-resource-control --add-T2s --plugin=CondorPlugin --pending-slots=50 --running-slots=50
+else
+  echo "Adding ALL sites to resource-control..."
+  ./manage execute-agent wmagent-resource-control --add-all-sites --plugin=CondorPlugin --pending-slots=50 --running-slots=50
+fi
 echo "Done!" && echo
 
 ###
@@ -223,7 +230,7 @@ echo "Done!" && echo
 ###
 echo "*** Downloading utilitarian scripts ***"
 cd $CURRENT
-wget -q --no-check-certificate https://raw.githubusercontent.com/julianbadillo/WmAgentScripts/c6af3bdac2f9a59af87aac1a3375d5295c711f46/rmOldJobs.sh
+wget -q --no-check-certificate https://raw.githubusercontent.com/CMSCompOps/WmAgentScripts/master/rmOldJobs.sh
 wget -q --no-check-certificate https://raw.github.com/CMSCompOps/WmAgentScripts/master/updateSiteStatus.py
 wget -q --no-check-certificate https://raw.github.com/CMSCompOps/WmAgentScripts/master/thresholdsFromSSB.py
 echo "Done!" && echo
