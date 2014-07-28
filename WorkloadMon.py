@@ -10,6 +10,16 @@ General development plan:
  1) code its UI: input via CLI and output in text mode only
  2) code its GUI: input via CLI and output in graphics (accessible via web)
  3) code its server side: input and output via webserver
+
+Request types:
+- MonteCarlo        done    jbalcas_MonteCarloEFFb1_140521_151902_3845
+- MonteCarlo        done    amaltaro_TOP-Summer11LegwmLHE-00006_140728_142125_9306
+- MonteCarlo LHE    done    amaltaro_SUS-Summer12pLHE-00144_140728_142123_189
+- MonteCarloFromGEN ?
+- ReDigi 1 step     ?
+- ReDigi 2 steps    ?
+- ReReco            ?
+- TaskChain         ?
 """
 import sys, os
 import httplib, json
@@ -55,7 +65,6 @@ def main():
     parser = OptionParser(usage = usage)
     parser.add_option('-r', '--request', help = 'Request name', dest = 'request')
     (options, args) = parser.parse_args()
-    #DOC: Example: jbalcas_MonteCarloEFFb1_140521_151902_3845
     if not options.request:
         parser.error('You must provide a request name')
         sys.exit(1)
@@ -85,33 +94,30 @@ def main():
 
     # Time to work on the performance thing
     allMetrics = {}
-    allMetrics['timing'] = ['jobTime', 'TotalJobTime', 'AvgEventTime', 'MaxEventTime', \
-                            'MinEventTime', 'writeTotalSecs']
-    allMetrics['memory'] = ['PeakValueVsize', 'PeakValueRss']
-    allMetrics['cpu']    = ['TotalEventCPU', 'AvgEventCPU', 'MaxEventCPU', 'MinEventCPU', \
-                            'TotalJobCPU']
-    allMetrics['disk']   = ['writeTotalMB', 'readTotalMB', 'readAveragekB', 'readMBSec', \
-                            'readNumOps', 'readPercentageOps', 'readCachePercentageOps', \
-                            'readTotalSecs', 'readMaxMSec']
+    allMetrics['timing'] = {'jobTime': None, 'TotalJobTime': None, 'AvgEventTime': None, \
+                            'MaxEventTime': 0, 'MinEventTime': None, 'writeTotalSecs': None}
+    allMetrics['memory'] = {'PeakValueVsize': None, 'PeakValueRss': None}
+    allMetrics['cpu']    = {'TotalEventCPU': None, 'AvgEventCPU': None, 'MaxEventCPU': None, \
+                            'MinEventCPU': None, 'TotalJobCPU': None}
+    allMetrics['disk']   = {'writeTotalMB': None, 'readTotalMB': None, 'readAveragekB': None, \
+                            'readMBSec': None, 'readNumOps': None, 'readPercentageOps': None, \
+                            'readCachePercentageOps': None, 'readTotalSecs': None, 'readMaxMSec': None}
 
     #goldenMetrics = ['PeakValueVsize', 'AvgEventTime', 'TotalJobTime', 'PeakValueRss']
 
     print '\nPerformance    :'
     # pair of task:path values
     for t, p in tasks.iteritems():
+        myMetrics = {}
         print ' - Path  : %s' % p
         print ' - Task  : %s' % t
-        # TODO: some of these metrics have no average key
-        for typeMetric, listMetrics in allMetrics.iteritems():
-            print '  -> %s:' % typeMetric
-            for metric in listMetrics:
-                try:
-                    print '    %-22s: %s' % (metric, \
-                                            reqout['performance'][p]['cmsRun1'][metric]['average'])
-                except:
-                    # TODO: histogram may be a list bigger than 1 I think...
-                    print '    %-22s: %s' % (metric, \
-                                            reqout['performance'][p]['cmsRun1'][metric]['histogram'][0]['average'])
+        for m, value in reqout['performance'][p]['cmsRun1'].iteritems():
+            try:
+                myMetrics[m] = value['average']
+            except KeyError:
+                # TODO: I have to iterate over this list instead of just getting the first one
+                myMetrics[m] = value['histogram'][0]['average']
+            print '    %-22s: %s' % (m, myMetrics[m])
 
     # TODO: analyse the results and build up a documentation for these metrics
     print '\nWork done!'
