@@ -15,10 +15,10 @@ Request types:
 - MonteCarlo        done    jbalcas_MonteCarloEFFb1_140521_151902_3845
 - MonteCarlo        done    amaltaro_TOP-Summer11LegwmLHE-00006_140728_142125_9306
 - MonteCarlo LHE    done    amaltaro_SUS-Summer12pLHE-00144_140728_142123_189
-- MonteCarloFromGEN ?
-- ReDigi 1 step     ?
-- ReDigi 2 steps    ?
-- ReReco            ?
+- MonteCarloFromGEN done    amaltaro_B2G-Summer12-00736_140728_142131_8982
+- ReDigi 1 step     done    amaltaro_BPH-Spring14miniaod-00004_140728_151007_4877
+- ReDigi 2 steps    done    amaltaro_B2G-Summer12DR53X-00743_140729_100547_7821
+- ReReco            done    amaltaro_ObjID2012DDoubleElectron_140729_101411_3131
 - TaskChain         ?
 """
 import sys, os
@@ -94,14 +94,14 @@ def main():
 
     # Time to work on the performance thing
     allMetrics = {}
-    allMetrics['timing'] = {'jobTime': None, 'TotalJobTime': None, 'AvgEventTime': None, \
-                            'MaxEventTime': 0, 'MinEventTime': None, 'writeTotalSecs': None}
-    allMetrics['memory'] = {'PeakValueVsize': None, 'PeakValueRss': None}
-    allMetrics['cpu']    = {'TotalEventCPU': None, 'AvgEventCPU': None, 'MaxEventCPU': None, \
-                            'MinEventCPU': None, 'TotalJobCPU': None}
-    allMetrics['disk']   = {'writeTotalMB': None, 'readTotalMB': None, 'readAveragekB': None, \
-                            'readMBSec': None, 'readNumOps': None, 'readPercentageOps': None, \
-                            'readCachePercentageOps': None, 'readTotalSecs': None, 'readMaxMSec': None}
+    allMetrics['timing'] = ['jobTime', 'TotalJobTime', 'AvgEventTime', 'MaxEventTime', \
+                            'MinEventTime', 'writeTotalSecs']
+    allMetrics['memory'] = ['PeakValueVsize', 'PeakValueRss']
+    allMetrics['cpu']    = ['TotalEventCPU', 'AvgEventCPU', 'MaxEventCPU', 'MinEventCPU', \
+                            'TotalJobCPU']
+    allMetrics['disk']   = ['writeTotalMB', 'readTotalMB', 'readAveragekB', 'readMBSec', \
+                            'readNumOps', 'readPercentageOps', 'readCachePercentageOps', \
+                            'readTotalSecs', 'readMaxMSec']
 
     #goldenMetrics = ['PeakValueVsize', 'AvgEventTime', 'TotalJobTime', 'PeakValueRss']
 
@@ -115,9 +115,17 @@ def main():
             try:
                 myMetrics[m] = value['average']
             except KeyError:
-                # TODO: I have to iterate over this list instead of just getting the first one
-                myMetrics[m] = value['histogram'][0]['average']
-            print '    %-22s: %s' % (m, myMetrics[m])
+                # then have to iterate over the whole histogram
+                avg = 0
+                nEvents = 0
+                for element in value['histogram']:
+                    nEvents += element['nEvents']
+                    avg += element['average'] * element['nEvents']
+                myMetrics[m] = avg / nEvents
+            print '    %-23s: %s' % (m, myMetrics[m])
+
+    # TODO: If I want to get the worstOffenders, then I should always pick up the first
+    # element in the list
 
     # TODO: analyse the results and build up a documentation for these metrics
     print '\nWork done!'
