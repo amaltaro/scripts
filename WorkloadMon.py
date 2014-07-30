@@ -55,6 +55,40 @@ def getWorkloadSummary(request):
     #   sys.exit(1)
     return s
 
+# TODO: pass hist argument
+def getAverage(tasks, workSum):
+    """
+    Receives a dict of task : fullpath to be searched in the workload summary.
+    """
+    print ' Feature : Average'
+    histogram = {}
+    for t, p in tasks.iteritems():
+        myMetrics = {}
+        print ' Path  : %s' % p
+        print ' Task  : %s' % t
+        for m, value in workSum['performance'][p]['cmsRun1'].iteritems():
+            try:
+                myMetrics[m] = value['average']
+            except KeyError:
+                # then have to iterate over the whole histogram
+                avg = 0
+                nEvents = 0
+                histogram[m] = []
+                for item in value['histogram']:
+                    # TODO: reduce the float precision
+                    # TODO: histogram is only available for golden metrics ...
+                    if item['nEvents']:
+                        histogram[m].append([item['nEvents'], item['average']])
+                    nEvents += item['nEvents']
+                    avg += item['average'] * item['nEvents']
+                myMetrics[m] = avg / nEvents
+            print '    %-23s: %s' % (m, myMetrics[m])
+
+        print ' Feature : Average'
+        #print histogram part
+        for k, v in histogram.iteritems():
+            print '%s\t%s' % (k, v)
+
 def main():
     """
     First you need to source cms_ui env, so you get your X509_USER_PROXY exported.
@@ -64,6 +98,12 @@ def main():
     usage = "Usage: %prog -r requestName"
     parser = OptionParser(usage = usage)
     parser.add_option('-r', '--request', help = 'Request name', dest = 'request')
+    parser.add_option('-i', '--histogram', action="store_true", 
+                      help='Used to retrieve and print histogram values.', dest='hist')
+    parser.add_option('-w', '--worstOff', action="store_true", 
+                      help='Used to retrieve and print the worstOffender values as well.', dest='worst')
+    parser.add_option('-z', '--zeroSup', action="store_true", 
+                      help='Used to suppress 0s found in histogram average field.', dest='zero')
     (options, args) = parser.parse_args()
     if not options.request:
         parser.error('You must provide a request name')
@@ -74,12 +114,12 @@ def main():
     #pprint.pprint(reqout)
 
     # TODO: also print the requestType and the siteWhiteList (needs reqmgr call)
-    print 'Request name   : %s' % reqout['_id']
-    print 'Campaign       : %s' % reqout['campaign']
-    print 'Input dataset  : %s' % reqout['inputdatasets']
-    print 'Output dataset :'
+    print 'RequestName   : %s' % reqout['_id']
+    print 'Campaign      : %s' % reqout['campaign']
+    print 'InputDataset  : %s' % ','.join(reqout['inputdatasets'])
+    print 'OutputDataset :'
     for out in reqout['output'].keys():
-        print ' - %s' % out
+        print ' %s' % out
 
     # Dict of whitelisted task:path values
     tasks = {}
@@ -105,24 +145,8 @@ def main():
 
     #goldenMetrics = ['PeakValueVsize', 'AvgEventTime', 'TotalJobTime', 'PeakValueRss']
 
-    print '\nPerformance    :'
-    # pair of task:path values
-    for t, p in tasks.iteritems():
-        myMetrics = {}
-        print ' - Path  : %s' % p
-        print ' - Task  : %s' % t
-        for m, value in reqout['performance'][p]['cmsRun1'].iteritems():
-            try:
-                myMetrics[m] = value['average']
-            except KeyError:
-                # then have to iterate over the whole histogram
-                avg = 0
-                nEvents = 0
-                for element in value['histogram']:
-                    nEvents += element['nEvents']
-                    avg += element['average'] * element['nEvents']
-                myMetrics[m] = avg / nEvents
-            print '    %-23s: %s' % (m, myMetrics[m])
+    print '\nPerformance   :'
+    getAverage(tasks, reqout)
 
     # TODO: If I want to get the worstOffenders, then I should always pick up the first
     # element in the list
