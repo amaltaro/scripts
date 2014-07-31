@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 ### This script downloads a CMSWEB deployment tag and then use the Deploy script
 ### with the arguments provided in the command line to deploy WMAgent in a VOBox.
@@ -7,15 +7,22 @@
 ### the configuration and finally, download and create some utilitarian cronjobs.
 ###
 ### Usage: deployProd.sh -h
-### Usage: ./deployProd.sh -w <wma_version> -c <cmsweb_tag> -s <scram_arch> -t <team_name> -n <agent_number> -f <DB_flavor>
-### Usage: Example: ./deployProd.sh -w 0.9.95b -c HG1406e -s slc5_amd64_gcc461 -t step0 -f oracle
-###
+### Usage:               -w <wma_version>  WMAgent version (tag) available in the WMCore repository
+### Usage:               -c <cmsweb_tag>   CMSWEB deployment tag used for the WMAgent deployment
+### Usage:               -t <team_name>    Team name in which the agent should be connected to
+### Usage:               -s <scram_arch>   The RPM architecture (defaults to slc5_amd64_gcc461)
+### Usage:               -r <repository>   Comp repository to look for the RPMs (defaults to comp=comp)
+### Usage:               -n <agent_number> Agent number to be set when more than 1 agent connected to the same team (defaults to 0)
+### Usage:               -f <db_flavor>    Should be mysql or oracle, according to your setup (defaults to mysql)
+### Usage:
+### Usage: deployProd.sh -w <wma_version> -c <cmsweb_tag> -t <team_name> [-s <scram_arch>] [-r <repository>] [-n <agent_number>] [-f <db_flavor>]
+### Usage: Example: deployProd.sh -w 0.9.95b_patch1 -c HG1406e -t mc -n 2 -f oracle
+### Usage: Example: deployProd.sh -w 0.9.95b -c HG1406e -t testbed-relval -s slc6_amd64_gcc481 -r comp=comp.pre.amaltaro
+### Usage:
 ### TODO:
 ###  - automatize the clean up of the old agent
 ###  - automatize the way we fetch patches
-###  - automatize crontab population
-### TODO (improvements): 
-###  - maxRetries is currently based on team name (hard-coded, reproc_lowprio or others...) 
+###  - automatize crontab population	
  
 BASE_DIR=/data/srv 
 DEPLOY_DIR=$BASE_DIR/wmagent 
@@ -23,8 +30,12 @@ ENV_FILE=/data/admin/wmagent/env.sh
 CURRENT=/data/srv/wmagent/current
 MANAGE=/data/srv/wmagent/current/config/wmagent/ 
 OP_EMAIL=alan.malta@cern.ch
-GLOBAL_DBS_URL=https://cmsweb.cern.ch/dbs/prod/global/DBSReader
+
+# These values may be overwritten by the arguments provided in the command line
+WMA_ARCH=slc5_amd64_gcc461
+REPO="comp=comp"
 AG_NUM=0
+FLAVOR=mysql
 
 ### Usage function: print the usage of the script
 usage()
@@ -107,21 +118,22 @@ for arg; do
     -h) help ;;
     -w) WMA_TAG=$2; shift; shift ;;
     -c) CMSWEB_TAG=$2; shift; shift ;;
-    -s) WMA_ARCH=$2; shift; shift ;;
     -t) TEAMNAME=$2; shift; shift ;;
+    -s) WMA_ARCH=$2; shift; shift ;;
+    -r) REPO=$2; shift; shift ;;
     -n) AG_NUM=$2; shift; shift ;;
     -f) FLAVOR=$2; shift; shift ;;
     -*) usage ;;
   esac
 done
 
-if [[ -z $WMA_TAG ]] || [[ -z $CMSWEB_TAG ]] || [[ -z $WMA_ARCH ]] || [[ -z $TEAMNAME ]] || [[ -z $FLAVOR ]]; then
+if [[ -z $WMA_TAG ]] || [[ -z $CMSWEB_TAG ]] || [[ -z $TEAMNAME ]]; then
   usage
   exit 1
 fi
 
 if [ "$FLAVOR" == "oracle" ] || [ "$FLAVOR" == "mysql" ]; then
-  : # or should it be pass ?
+  :
 else
   echo "ERROR: Backend database unknown. Choose either 'mysql' or 'oracle'."
   usage
@@ -130,9 +142,10 @@ fi
 
 echo "Starting new agent deployment with the following data:"
 echo " - WMAgent version: $WMA_TAG"
-echo " - WMAgent Arch   : $WMA_ARCH"
 echo " - CMSWEB tag     : $CMSWEB_TAG"
 echo " - Team name      : $TEAMNAME"
+echo " - WMAgent Arch   : $WMA_ARCH"
+echo " - Repository     : $REPO"
 echo " - Agent number   : $AG_NUM"
 echo " - DB Flavor      : $FLAVOR" && echo
 
@@ -149,22 +162,21 @@ echo "Done!" && echo
 echo "*** Bootstrapping WMAgent: prep ***"
 source $ENV_FILE;
 (cd $BASE_DIR/deployment-$CMSWEB_TAG
-./Deploy -R wmagent@$WMA_TAG -s prep -A $WMA_ARCH -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
+./Deploy -R wmagent@$WMA_TAG -s prep -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
 
 echo "*** Deploying WMAgent: sw ***"
 (cd $BASE_DIR/deployment-$CMSWEB_TAG
-./Deploy -R wmagent@$WMA_TAG -s sw -A $WMA_ARCH -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
+./Deploy -R wmagent@$WMA_TAG -s sw -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
 
 echo "*** Posting WMAgent: post ***"
 (cd $BASE_DIR/deployment-$CMSWEB_TAG
-./Deploy -R wmagent@$WMA_TAG -s post -A $WMA_ARCH -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
+./Deploy -R wmagent@$WMA_TAG -s post -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
 
 ### TODO: You have to manually add patches here
 echo "*** Applying deployment patches ***"
 cd $CURRENT
-wget -nv https://github.com/dmwm/WMCore/pull/5217.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # temp fix for lumi report on workloadsummary
-wget -nv https://github.com/dmwm/WMCore/pull/5229.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # sanitize couch url logs
-wget -nv https://github.com/dmwm/WMCore/pull/5237.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fix dataset name in summary db
+#wget -nv https://github.com/ticoann/WMCore/commit/e30bd067d2733745e1cbb70af7488156ce484fee.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # sanitize couch url logs
+#wget -nv https://github.com/dmwm/WMCore/pull/5217.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # temp fix for lumi report on workloadsummary
 cd -
 echo "Done!" && echo
 
@@ -183,7 +195,7 @@ fi
 
 ### Enabling couch watchdog:
 echo "*** Enabling couch watchdog ***"
-sed -i "s+RESPAWN_TIMEOUT=0+RESPAWN_TIMEOUT=5+" $CURRENT/sw/$WMA_ARCH/external/couchdb/*/bin/couchdb
+sed -i "s+RESPAWN_TIMEOUT=0+RESPAWN_TIMEOUT=5+" $CURRENT/sw*/$WMA_ARCH/external/couchdb/*/bin/couchdb
 echo "Done!" && echo
 
 echo "*** Starting services ***"
@@ -206,11 +218,15 @@ sed -i "s+OP EMAIL+$OP_EMAIL+" $MANAGE/config.py
 sed -i "/config.ErrorHandler.pollInterval = 240/a config.ErrorHandler.maxProcessSize = 30" $MANAGE/config.py
 sed -i "s+config.PhEDExInjector.diskSites = \[\]+config.PhEDExInjector.diskSites = \['storm-fe-cms.cr.cnaf.infn.it','srm-cms-disk.gridpp.rl.ac.uk','cmssrm-fzk.gridka.de','ccsrm.in2p3.fr','srmcms.pic.es','cmssrmdisk.fnal.gov'\]+" $MANAGE/config.py
 sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 259200, 'Error': 1800+" $MANAGE/config.py
-if [ [ "$TEAMNAME" == "reproc_lowprio" ] || [ "$TEAMNAME" == "relval_cern" ] ]; then
+if [ "$TEAMNAME" == "reproc_lowprio" ] || [ "$TEAMNAME" == "relval_cern" ]; then
   sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Merge' : 4, 'LogCollect' : 2, 'Cleanup' : 2\}+" $MANAGE/config.py
 else
   sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Harvesting' : 2, 'Merge' : 4, 'LogCollect' : 1, 'Cleanup' : 2\}+" $MANAGE/config.py
 fi
+### TODO: define a testbed argument, so it enables these 3 lines
+#GLOBAL_DBS_URL=https://cmsweb-testbed.cern.ch/dbs/int/global/DBSReader
+#sed -i "s+DBSInterface.globalDBSUrl = 'https://cmsweb.cern.ch/dbs/prod/global/DBSReader'+DBSInterface.globalDBSUrl = '$GLOBAL_DBS_URL'+" $MANAGE/config.py
+#sed -i "s+DBSInterface.DBSUrl = 'https://cmsweb.cern.ch/dbs/prod/global/DBSReader'+DBSInterface.DBSUrl = '$GLOBAL_DBS_URL'+" $MANAGE/config.py
 echo "Done!" && echo
 
 echo "*** Populating resource-control ***"
@@ -230,7 +246,7 @@ echo "Done!" && echo
 ###
 echo "*** Downloading utilitarian scripts ***"
 cd $CURRENT
-wget -q --no-check-certificate https://raw.githubusercontent.com/CMSCompOps/WmAgentScripts/master/rmOldJobs.sh
+wget -q --no-check-certificate https://raw.githubusercontent.com/julianbadillo/WmAgentScripts/c6af3bdac2f9a59af87aac1a3375d5295c711f46/rmOldJobs.sh
 wget -q --no-check-certificate https://raw.github.com/CMSCompOps/WmAgentScripts/master/updateSiteStatus.py
 wget -q --no-check-certificate https://raw.github.com/CMSCompOps/WmAgentScripts/master/thresholdsFromSSB.py
 echo "Done!" && echo
@@ -251,3 +267,4 @@ echo "  1) Source the new WMA env: source /data/admin/wmagent/env.sh"
 echo "  2) Double check agent configuration: less config/wmagent/config.py"
 echo "  3) Start the agent with: \$manage start-agent"
 echo && echo "Have a nice day!" && echo
+exit 0
