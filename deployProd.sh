@@ -6,6 +6,9 @@
 ### in the code), populate the resource-control database, apply final tweaks to
 ### the configuration and finally, download and create some utilitarian cronjobs.
 ###
+### If you are deploying a testbed agent (with testbed team name), it will point
+### to cmsweb-testbed DBSUrl
+###
 ### Usage: deployProd.sh -h
 ### Usage:               -w <wma_version>  WMAgent version (tag) available in the WMCore repository
 ### Usage:               -c <cmsweb_tag>   CMSWEB deployment tag used for the WMAgent deployment
@@ -20,9 +23,8 @@
 ### Usage: Example: deployProd.sh -w 0.9.95b -c HG1406e -t testbed-relval -s slc6_amd64_gcc481 -r comp=comp.pre.amaltaro
 ### Usage:
 ### TODO:
-###  - automatize the clean up of the old agent
 ###  - automatize the way we fetch patches
-###  - automatize crontab population	
+###  - automatize the clean up of the old agent
  
 BASE_DIR=/data/srv 
 DEPLOY_DIR=$BASE_DIR/wmagent 
@@ -172,7 +174,7 @@ echo "*** Posting WMAgent: post ***"
 (cd $BASE_DIR/deployment-$CMSWEB_TAG
 ./Deploy -R wmagent@$WMA_TAG -s post -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
 
-### TODO: You have to manually add patches here
+### TODO TODO TODO TODO You have to manually add patches here
 echo "*** Applying deployment patches ***"
 cd $CURRENT
 #wget -nv https://github.com/ticoann/WMCore/commit/e30bd067d2733745e1cbb70af7488156ce484fee.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # sanitize couch url logs
@@ -218,20 +220,22 @@ sed -i "s+OP EMAIL+$OP_EMAIL+" $MANAGE/config.py
 sed -i "/config.ErrorHandler.pollInterval = 240/a config.ErrorHandler.maxProcessSize = 30" $MANAGE/config.py
 sed -i "s+config.PhEDExInjector.diskSites = \[\]+config.PhEDExInjector.diskSites = \['storm-fe-cms.cr.cnaf.infn.it','srm-cms-disk.gridpp.rl.ac.uk','cmssrm-fzk.gridka.de','ccsrm.in2p3.fr','srmcms.pic.es','cmssrmdisk.fnal.gov'\]+" $MANAGE/config.py
 sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 259200, 'Error': 1800+" $MANAGE/config.py
-if [ "$TEAMNAME" == "reproc_lowprio" ] || [ "$TEAMNAME" == "relval_cern" ]; then
+if [[ "$TEAMNAME" == "reproc_lowprio" || "$TEAMNAME" == "relval_cern" ]]; then
   sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Merge' : 4, 'LogCollect' : 2, 'Cleanup' : 2\}+" $MANAGE/config.py
+elif [[ "$TEAMNAME" == *testbed* ]]; then
+  GLOBAL_DBS_URL=https://cmsweb-testbed.cern.ch/dbs/int/global/DBSReader
+  sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = 0+" $MANAGE/config.py
+  sed -i "s+DBSInterface.globalDBSUrl = 'https://cmsweb.cern.ch/dbs/prod/global/DBSReader'+DBSInterface.globalDBSUrl = '$GLOBAL_DBS_URL'+" $MANAGE/config.py
+  sed -i "s+DBSInterface.DBSUrl = 'https://cmsweb.cern.ch/dbs/prod/global/DBSReader'+DBSInterface.DBSUrl = '$GLOBAL_DBS_URL'+" $MANAGE/config.py
 else
   sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Harvesting' : 2, 'Merge' : 4, 'LogCollect' : 1, 'Cleanup' : 2\}+" $MANAGE/config.py
 fi
-### TODO: define a testbed argument, so it enables these 3 lines
-#GLOBAL_DBS_URL=https://cmsweb-testbed.cern.ch/dbs/int/global/DBSReader
-#sed -i "s+DBSInterface.globalDBSUrl = 'https://cmsweb.cern.ch/dbs/prod/global/DBSReader'+DBSInterface.globalDBSUrl = '$GLOBAL_DBS_URL'+" $MANAGE/config.py
-#sed -i "s+DBSInterface.DBSUrl = 'https://cmsweb.cern.ch/dbs/prod/global/DBSReader'+DBSInterface.DBSUrl = '$GLOBAL_DBS_URL'+" $MANAGE/config.py
 echo "Done!" && echo
 
+### Populating resource-control
 echo "*** Populating resource-control ***"
 cd $MANAGE
-if [ "$TEAMNAME" == "relval_cern" ]; then
+if [[ "$TEAMNAME" == "relval_cern" || "$TEAMNAME" == *testbed* ]]; then
   echo "Adding only T1 and T2 sites to resource-control..."
   ./manage execute-agent wmagent-resource-control --add-T1s --plugin=CondorPlugin --pending-slots=50 --running-slots=50
   ./manage execute-agent wmagent-resource-control --add-T2s --plugin=CondorPlugin --pending-slots=50 --running-slots=50
@@ -251,15 +255,16 @@ wget -q --no-check-certificate https://raw.github.com/CMSCompOps/WmAgentScripts/
 wget -q --no-check-certificate https://raw.github.com/CMSCompOps/WmAgentScripts/master/thresholdsFromSSB.py
 echo "Done!" && echo
 
-# TODO: find a way to populate the crontab without deleting its previous content
+### Populating cronjob with utilitarian scripts
 echo "*** Creating cronjobs for them ***"
-echo -e "Copy and paste these stupid cronjobs into crontab please\n"
+( crontab -l 2>/dev/null | grep -Fv ntpdate
 echo "#Update site status"
 echo "*/20 * * * * (source /data/admin/wmagent/env.sh ; source /data/srv/wmagent/current/apps/wmagent/etc/profile.d/init.sh ; python /data/srv/wmagent/current/updateSiteStatus.py ) &> /tmp/updateSiteStatus.log"
 echo "#Update site thresholds"
 echo "*/20 * * * * (source /data/admin/wmagent/env.sh ; source /data/srv/wmagent/current/apps/wmagent/etc/profile.d/init.sh ; python /data/srv/wmagent/current/thresholdsFromSSB.py ) &> /tmp/thresholdsFromSSB.log"
 echo "#remove old jobs script"
 echo "10 */4 * * * source /data/srv/wmagent/current/rmOldJobs.sh &> /tmp/rmJobs.log"
+) | crontab -
 echo -e "\nDone!" && echo
 
 echo && echo "Deployment finished!! However you still need to:"
@@ -267,4 +272,5 @@ echo "  1) Source the new WMA env: source /data/admin/wmagent/env.sh"
 echo "  2) Double check agent configuration: less config/wmagent/config.py"
 echo "  3) Start the agent with: \$manage start-agent"
 echo && echo "Have a nice day!" && echo
+
 exit 0
