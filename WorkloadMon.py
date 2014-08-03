@@ -12,13 +12,13 @@ General development plan:
  3) code its server side: input and output via webserver
 
 Request types:
-- MonteCarlo        done    jbalcas_MonteCarloEFFb1_140521_151902_3845
-- MonteCarlo        done    amaltaro_TOP-Summer11LegwmLHE-00006_140728_142125_9306
-- MonteCarlo LHE    done    amaltaro_SUS-Summer12pLHE-00144_140728_142123_189
-- MonteCarloFromGEN done    amaltaro_B2G-Summer12-00736_140728_142131_8982
-- ReDigi 1 step     done    amaltaro_BPH-Spring14miniaod-00004_140728_151007_4877
-- ReDigi 2 steps    done    amaltaro_B2G-Summer12DR53X-00743_140729_100547_7821
-- ReReco            done    amaltaro_ObjID2012DDoubleElectron_140729_101411_3131
+- MonteCarlo        jbalcas_MonteCarloEFFb1_140521_151902_3845
+- MonteCarlo        amaltaro_TOP-Summer11LegwmLHE-00006_140728_142125_9306
+- MonteCarlo LHE    amaltaro_SUS-Summer12pLHE-00144_140728_142123_189
+- MonteCarloFromGEN amaltaro_B2G-Summer12-00736_140728_142131_8982
+- ReDigi 1 step     amaltaro_BPH-Spring14miniaod-00004_140728_151007_4877
+- ReDigi 2 steps    amaltaro_B2G-Summer12DR53X-00743_140729_100547_7821
+- ReReco            amaltaro_ObjID2012DDoubleElectron_140729_101411_3131
 - TaskChain         ?
 """
 import sys, os
@@ -55,39 +55,47 @@ def getWorkloadSummary(request):
     #   sys.exit(1)
     return s
 
-# TODO: pass hist argument
-def getAverage(tasks, workSum):
+def getAverage(task, path, reqout):
     """
     Receives a dict of task : fullpath to be searched in the workload summary.
     """
     print ' Feature : Average'
-    histogram = {}
-    for t, p in tasks.iteritems():
-        myMetrics = {}
-        print ' Path  : %s' % p
-        print ' Task  : %s' % t
-        for m, value in workSum['performance'][p]['cmsRun1'].iteritems():
-            try:
-                myMetrics[m] = value['average']
-            except KeyError:
-                # then have to iterate over the whole histogram
-                avg = 0
-                nEvents = 0
-                histogram[m] = []
-                for item in value['histogram']:
-                    # TODO: reduce the float precision
-                    # TODO: histogram is only available for golden metrics ...
-                    if item['nEvents']:
-                        histogram[m].append([item['nEvents'], item['average']])
+    myMetrics = {}
+    print ' Path  : %s' % path
+    print ' Task  : %s' % task
+    for m, value in reqout['performance'][path]['cmsRun1'].iteritems():
+        try:
+            myMetrics[m] = value['average']
+        except KeyError:
+            avg = 0
+            nEvents = 0
+            for item in value['histogram']:
+                if item['nEvents'] > 0:
                     nEvents += item['nEvents']
                     avg += item['average'] * item['nEvents']
+            if nEvents > 0:
                 myMetrics[m] = avg / nEvents
-            print '    %-23s: %s' % (m, myMetrics[m])
+            else:
+                myMetrics[m] = None
+        print '    %-23s: %s' % (m, myMetrics[m])
 
-        print ' Feature : Average'
-        #print histogram part
-        for k, v in histogram.iteritems():
-            print '%s\t%s' % (k, v)
+def getHistogram(task, path, reqout):
+    """
+    Fetch only histogram values, which are available only for the golden metrics.
+    """
+    print ' Feature : Histogram'
+    goldenMetrics = ['PeakValueVsize', 'AvgEventTime', 'TotalJobTime', 'PeakValueRss']
+    histogram = {}
+    for metric in goldenMetrics:
+        histogram[metric] = []
+        try:
+            for value in reqout['performance'][path]['cmsRun1'][metric]['histogram']:
+                if value['nEvents']:
+                    newAverage = "%.2f" % value['average']
+                    histogram[metric].append([value['nEvents'], newAverage])
+        except KeyError:
+            pass
+        print '    %-23s: %s' % (metric, histogram[metric])
 
 def main():
     """
@@ -143,10 +151,11 @@ def main():
                             'readNumOps', 'readPercentageOps', 'readCachePercentageOps', \
                             'readTotalSecs', 'readMaxMSec']
 
-    #goldenMetrics = ['PeakValueVsize', 'AvgEventTime', 'TotalJobTime', 'PeakValueRss']
-
     print '\nPerformance   :'
-    getAverage(tasks, reqout)
+    for t, p in tasks.iteritems():
+        getAverage(t, p, reqout)
+        if options.hist:
+            getHistogram(t, p, reqout)
 
     # TODO: If I want to get the worstOffenders, then I should always pick up the first
     # element in the list
