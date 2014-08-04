@@ -21,6 +21,8 @@ Request types:
 - ReReco            amaltaro_ObjID2012DDoubleElectron_140729_101411_3131
 - TaskChain         ?
 """
+# TODO: need to get workflows with > 1 step/task
+
 import sys, os
 import httplib, json
 import pprint
@@ -91,11 +93,29 @@ def getHistogram(task, path, reqout):
         try:
             for value in reqout['performance'][path]['cmsRun1'][metric]['histogram']:
                 if value['nEvents']:
-                    newAverage = "%.2f" % value['average']
-                    histogram[metric].append([value['nEvents'], newAverage])
+                    # TODO: need to remove this rounding at some point
+                    roundedValue = "%.2f" % value['average']
+                    histogram[metric].append([value['nEvents'], roundedValue])
         except KeyError:
             pass
         print '    %-23s: %s' % (metric, histogram[metric])
+
+def getWorstOffenders(task, path, reqout):
+    """
+    It fetches the 3 worst offender values for all metrics that are available.
+    """
+    print ' Feature : WorstOffenders'
+    worstOff = {}
+    for m, value in reqout['performance'][path]['cmsRun1'].iteritems():
+        if 'worstOffenders' in value:
+            worstOff[m] = []
+            for item in value['worstOffenders']:
+                if len(worstOff[m]) < 3 and item['value'] > 0:
+                    # TODO: need to remove this rounding at some point
+                    roundedValue = "%.2f" % float(item['value'])
+                    worstOff[m].append(roundedValue)
+        print '    %-23s: %s' % (m, worstOff[m])
+    #print '  WorstOff: %s' % worstOff
 
 def main():
     """
@@ -156,6 +176,8 @@ def main():
         getAverage(t, p, reqout)
         if options.hist:
             getHistogram(t, p, reqout)
+        if options.worst:
+            getWorstOffenders(t, p, reqout)
 
     # TODO: If I want to get the worstOffenders, then I should always pick up the first
     # element in the list
