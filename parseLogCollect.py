@@ -70,7 +70,13 @@ def main():
         results[k]['avg'] = "%.3f" % results[k]['avg']
         results[k]['max'] = "%.3f" % results[k]['max']
         results[k]['min'] = "%.3f" % results[k]['min']
-        print "%-47s : %s" % (k, results[k])
+ 
+    # Printing outside the upper for, so we can kind of order it...
+    for metric in readMetrics: 
+        print "%-47s : %s" % (metric, results[metric])
+    print ""
+    for metric in writeMetrics: 
+        print "%-47s : %s" % (metric, results[metric])
 
     sys.exit(0)
 
