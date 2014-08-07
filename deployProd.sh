@@ -2,12 +2,17 @@
 
 ### This script downloads a CMSWEB deployment tag and then use the Deploy script
 ### with the arguments provided in the command line to deploy WMAgent in a VOBox.
-### It deploys the agent, apply all the required patches (which must be defined
+###
+### It deploys the agent, apply all the required patches (TODO they must be defined
 ### in the code), populate the resource-control database, apply final tweaks to
 ### the configuration and finally, download and create some utilitarian cronjobs.
 ###
-### If you are deploying a testbed agent (with testbed team name), it will point
-### to cmsweb-testbed DBSUrl
+### You also can choose whether you want to separate the WMAgent from the Couchdb
+### deployment. By default Couch databases will be available in /data partition.
+### Unless there is a /data1 partition and you select to use it.
+###
+### If you are deploying a testbed agent (with "testbed" in the team name), it will
+### point to cmsweb-testbed DBSUrl.
 ###
 ### Usage: deployProd.sh -h
 ### Usage:               -w <wma_version>  WMAgent version (tag) available in the WMCore repository
@@ -16,10 +21,9 @@
 ### Usage:               -s <scram_arch>   The RPM architecture (defaults to slc5_amd64_gcc461)
 ### Usage:               -r <repository>   Comp repository to look for the RPMs (defaults to comp=comp)
 ### Usage:               -n <agent_number> Agent number to be set when more than 1 agent connected to the same team (defaults to 0)
-### Usage:               -f <db_flavor>    Should be mysql or oracle, according to your setup (defaults to mysql)
 ### Usage:
-### Usage: deployProd.sh -w <wma_version> -c <cmsweb_tag> -t <team_name> [-s <scram_arch>] [-r <repository>] [-n <agent_number>] [-f <db_flavor>]
-### Usage: Example: deployProd.sh -w 0.9.95b_patch1 -c HG1406e -t mc -n 2 -f oracle
+### Usage: deployProd.sh -w <wma_version> -c <cmsweb_tag> -t <team_name> [-s <scram_arch>] [-r <repository>] [-n <agent_number>]
+### Usage: Example: deployProd.sh -w 0.9.95b_patch1 -c HG1406e -t mc -n 2
 ### Usage: Example: deployProd.sh -w 0.9.95b -c HG1406e -t testbed-relval -s slc6_amd64_gcc481 -r comp=comp.pre.amaltaro
 ### Usage:
 ### TODO:
@@ -124,7 +128,6 @@ for arg; do
     -s) WMA_ARCH=$2; shift; shift ;;
     -r) REPO=$2; shift; shift ;;
     -n) AG_NUM=$2; shift; shift ;;
-    -f) FLAVOR=$2; shift; shift ;;
     -*) usage ;;
   esac
 done
@@ -134,13 +137,25 @@ if [[ -z $WMA_TAG ]] || [[ -z $CMSWEB_TAG ]] || [[ -z $TEAMNAME ]]; then
   exit 1
 fi
 
-if [ "$FLAVOR" == "oracle" ] || [ "$FLAVOR" == "mysql" ]; then
-  :
-else
-  echo "ERROR: Backend database unknown. Choose either 'mysql' or 'oracle'."
-  usage
-  exit 2
+source $ENV_FILE;
+MATCH_ORACLE_USER=`cat $WMAGENT_SECRETS_LOCATION | grep ORACLE_USER | sed s/ORACLE_USER=//`
+if [ "x$MATCH_ORACLE_USER" != "x" ]; then
+  FLAVOR=oracle
 fi
+
+if [ -d "/data1" ]; then
+  DATA_SIZE=`df -h | grep '/data1' | awk '{print $2}'`
+  echo "Partition /data1 available! Total size: $DATA_SIZE"
+  sleep 0.5
+  while true; do
+    read -p "Would you like to deploy couchdb in this /data1 partition (yes/no)? " yn
+    case $yn in
+      [Y/y]* ) DATA1=true; break;;
+      [N/n]* ) DATA1=false; break;;
+      * ) echo "Please answer yes or no.";;
+    esac
+  done
+fi && echo
 
 echo "Starting new agent deployment with the following data:"
 echo " - WMAgent version: $WMA_TAG"
@@ -149,7 +164,8 @@ echo " - Team name      : $TEAMNAME"
 echo " - WMAgent Arch   : $WMA_ARCH"
 echo " - Repository     : $REPO"
 echo " - Agent number   : $AG_NUM"
-echo " - DB Flavor      : $FLAVOR" && echo
+echo " - DB Flavor      : $FLAVOR"
+echo " - Use /data1     : $DATA1" && echo
 
 mkdir -p $DEPLOY_DIR || true
 cd $BASE_DIR
@@ -162,7 +178,6 @@ echo "*** Removing the current crontab ***"
 echo "Done!" && echo
 
 echo "*** Bootstrapping WMAgent: prep ***"
-source $ENV_FILE;
 (cd $BASE_DIR/deployment-$CMSWEB_TAG
 ./Deploy -R wmagent@$WMA_TAG -s prep -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
 
@@ -209,6 +224,22 @@ echo "*** Initializing the agent ***"
 ./manage init-agent
 echo "Done!" && echo
 sleep 5
+
+echo "*** Checking if couchdb migration is needed ***"
+if [ "$DATA1" = true ]; then
+  ./manage stop-services
+  sleep 5
+  if [ -d "/data1/database/" ]; then
+    echo "Moving old database away... "
+    mv /data1/database/ /data1/database_old/
+    FINAL_MSG="5) Remove the old database when possible (/data1/database_old/)"
+  fi
+  rsync --remove-source-files -avr /data/srv/wmagent/current/install/couchdb/database /data1
+  sed -i "s+database_dir = .*+database_dir = /data1/database+" $CURRENT/config/couchdb/local.ini
+  sed -i "s+view_index_dir = .*+view_index_dir = /data1/database+" $CURRENT/config/couchdb/local.ini
+  ./manage start-services
+fi
+echo "Done!" && echo
 
 ###
 # tweak configuration
@@ -265,12 +296,14 @@ echo "*/20 * * * * (source /data/admin/wmagent/env.sh ; source /data/srv/wmagent
 echo "#remove old jobs script"
 echo "10 */4 * * * source /data/srv/wmagent/current/rmOldJobs.sh &> /tmp/rmJobs.log"
 ) | crontab -
-echo -e "\nDone!" && echo
+echo "Done!" && echo
 
 echo && echo "Deployment finished!! However you still need to:"
 echo "  1) Source the new WMA env: source /data/admin/wmagent/env.sh"
 echo "  2) Double check agent configuration: less config/wmagent/config.py"
 echo "  3) Start the agent with: \$manage start-agent"
+echo "  4) Remove the old WMAgent version when possible"
+echo "  $FINAL_MSG"
 echo && echo "Have a nice day!" && echo
 
 exit 0
