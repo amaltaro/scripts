@@ -1,5 +1,5 @@
 #!/usr/bin/env python -u
-import os, sys
+import os, sys, json
 import subprocess
 import pprint
 from optparse import OptionParser
@@ -13,6 +13,7 @@ def main():
     usage = "Usage: %prog -l logCollect"
     parser = OptionParser(usage = usage)
     parser.add_option('-l', '--logCollet', help = 'Tarball for the logCollect jobs', dest = 'logCol')
+    parser.add_option('-f', '--fileOut', help = 'Output file containing info in json format', dest = 'fileOut')
     (options, args) = parser.parse_args()
     if not options.logCol:
         parser.error('You must provide a logCollect tarball')
@@ -48,8 +49,11 @@ def main():
                 total[ele[0]] = [float(ele[1])]
             else:
                 total[ele[0]].append(float(ele[1]))
-#    print "Number of logArchives: %d" % i
-#    pprint.pprint(total)
+
+    if options.fileOut:
+        with open(options.fileOut, 'w') as outFile:
+            json.dump(total, outFile)
+            outFile.close()
 
     # Calculates average, standard deviation (old way, no numpy available) and
     # finds the maximum and minimum values
