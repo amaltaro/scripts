@@ -8,31 +8,41 @@ from math import sqrt
 
 def main():
     """
-    Provide a logCollect tarball as input
+    Provide a logCollect tarball as input (in your local machine).
     """
     usage = "Usage: %prog -l logCollect"
     parser = OptionParser(usage = usage)
     parser.add_option('-l', '--logCollet', help = 'Tarball for the logCollect jobs', dest = 'logCol')
     parser.add_option('-f', '--fileOut', help = 'Output file containing info in json format', dest = 'fileOut')
+    parser.add_option('-s', '--short', action = "store_true", 
+                      help = 'Use it for short summary (8 metrics instead of 24)', dest = 'short')
     (options, args) = parser.parse_args()
     if not options.logCol:
         parser.error('You must provide a logCollect tarball')
         sys.exit(1)
+    if options.short:
+        readMetrics = ["Timing-file-read-maxMsecs","Timing-file-read-numOperations",
+                       "Timing-file-read-totalMegabytes","Timing-file-read-totalMsecs"]
+        writeMetrics = ["Timing-file-write-maxMsecs","Timing-file-write-numOperations",
+                        "Timing-file-write-totalMegabytes","Timing-file-write-totalMsecs"]
+    else:
+        readMetrics = ["Timing-file-read-maxMsecs","Timing-tstoragefile-read-maxMsecs",
+                       "Timing-tstoragefile-readActual-maxMsecs","Timing-file-read-numOperations",
+                       "Timing-tstoragefile-read-numOperations","Timing-tstoragefile-readActual-numOperations",
+                       "Timing-file-read-totalMegabytes","Timing-tstoragefile-read-totalMegabytes",
+                       "Timing-tstoragefile-readActual-totalMegabytes","Timing-file-read-totalMsecs",
+                       "Timing-tstoragefile-read-totalMsecs","Timing-tstoragefile-readActual-totalMsecs"]
+        writeMetrics = ["Timing-file-write-maxMsecs","Timing-tstoragefile-write-maxMsecs",
+                        "Timing-tstoragefile-writeActual-maxMsecs","Timing-file-write-numOperations",
+                        "Timing-tstoragefile-write-numOperations","Timing-tstoragefile-writeActual-numOperations",
+                        "Timing-file-write-totalMegabytes","Timing-tstoragefile-write-totalMegabytes",
+                        "Timing-tstoragefile-writeActual-totalMegabytes","Timing-file-write-totalMsecs",
+                        "Timing-tstoragefile-write-totalMsecs","Timing-tstoragefile-writeActual-totalMsecs"]
 
     command = ["tar", "xvf", options.logCol]
     p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = p.communicate()
     tarballs = out.split()
-
-    readMetrics = ["Timing-file-read-maxMsecs","Timing-tstoragefile-read-maxMsecs","Timing-tstoragefile-readActual-maxMsecs",
-                   "Timing-file-read-numOperations","Timing-tstoragefile-read-numOperations","Timing-tstoragefile-readActual-numOperations",
-                   "Timing-file-read-totalMegabytes","Timing-tstoragefile-read-totalMegabytes","Timing-tstoragefile-readActual-totalMegabytes",
-                   "Timing-file-read-totalMsecs","Timing-tstoragefile-read-totalMsecs","Timing-tstoragefile-readActual-totalMsecs"]
-
-    writeMetrics = ["Timing-file-write-maxMsecs","Timing-tstoragefile-write-maxMsecs","Timing-tstoragefile-writeActual-maxMsecs",
-                   "Timing-file-write-numOperations","Timing-tstoragefile-write-numOperations","Timing-tstoragefile-writeActual-numOperations",
-                   "Timing-file-write-totalMegabytes","Timing-tstoragefile-write-totalMegabytes","Timing-tstoragefile-writeActual-totalMegabytes",
-                   "Timing-file-write-totalMsecs","Timing-tstoragefile-write-totalMsecs","Timing-tstoragefile-writeActual-totalMsecs"]
 
     total = {}
     for i, file in enumerate(tarballs):
