@@ -6,11 +6,16 @@ from optparse import OptionParser
 from xml.dom import minidom
 from math import sqrt
 
+### TODO: try to optimize it
+### TODO: I'm cleaning up the write metrics because it looks like it's completely unreliable
+### TODO: read metrics are also not very reliable, but ... let's keep them a bit longer
+  
 def main():
     """
-    Provide a logCollect tarball as input (in your local machine).
+    Provide a logCollect tarball as input (in your local machine) or a text file
+    with their name.
     """
-    usage = "Usage: %prog -l logCollect"
+    usage = "Usage: %prog -l logCollect -i inputFile [-o outputFile] [--short]"
     parser = OptionParser(usage = usage)
     parser.add_option('-l', '--logCollet', help = 'Tarball for the logCollect jobs', dest = 'logCol')
     parser.add_option('-i', '--inputFile', help = 'Input file containing the logCollect tarball names', dest = 'input')
@@ -22,23 +27,23 @@ def main():
         parser.error('You must either provide a logCollect tarball or a file with their names')
         sys.exit(1)
     if options.short:
-        readMetrics = ["Timing-file-read-maxMsecs","Timing-file-read-numOperations",
-                       "Timing-file-read-totalMegabytes","Timing-file-read-totalMsecs"]
-        writeMetrics = ["Timing-file-write-maxMsecs","Timing-file-write-numOperations",
-                        "Timing-file-write-totalMegabytes","Timing-file-write-totalMsecs"]
+        metrics = ["Timing-file-read-maxMsecs","Timing-file-read-numOperations",
+                   "Timing-file-read-totalMegabytes","Timing-file-read-totalMsecs",
+                   "Timing-file-write-totalMegabytes","AvgEventTime", "TotalJobTime"]
     else:
-        readMetrics = ["Timing-file-read-maxMsecs","Timing-tstoragefile-read-maxMsecs",
-                       "Timing-tstoragefile-readActual-maxMsecs","Timing-file-read-numOperations",
-                       "Timing-tstoragefile-read-numOperations","Timing-tstoragefile-readActual-numOperations",
-                       "Timing-file-read-totalMegabytes","Timing-tstoragefile-read-totalMegabytes",
-                       "Timing-tstoragefile-readActual-totalMegabytes","Timing-file-read-totalMsecs",
-                       "Timing-tstoragefile-read-totalMsecs","Timing-tstoragefile-readActual-totalMsecs"]
-        writeMetrics = ["Timing-file-write-maxMsecs","Timing-tstoragefile-write-maxMsecs",
-                        "Timing-tstoragefile-writeActual-maxMsecs","Timing-file-write-numOperations",
-                        "Timing-tstoragefile-write-numOperations","Timing-tstoragefile-writeActual-numOperations",
-                        "Timing-file-write-totalMegabytes","Timing-tstoragefile-write-totalMegabytes",
-                        "Timing-tstoragefile-writeActual-totalMegabytes","Timing-file-write-totalMsecs",
-                        "Timing-tstoragefile-write-totalMsecs","Timing-tstoragefile-writeActual-totalMsecs"]
+        metrics = ["Timing-file-read-maxMsecs","Timing-tstoragefile-read-maxMsecs",
+                   "Timing-tstoragefile-readActual-maxMsecs","Timing-file-read-numOperations",
+                   "Timing-tstoragefile-read-numOperations","Timing-tstoragefile-readActual-numOperations",
+                   "Timing-file-read-totalMegabytes","Timing-tstoragefile-read-totalMegabytes",
+                   "Timing-tstoragefile-readActual-totalMegabytes","Timing-file-read-totalMsecs",
+                   "Timing-tstoragefile-read-totalMsecs","Timing-tstoragefile-readActual-totalMsecs",
+                   "Timing-file-write-maxMsecs","Timing-tstoragefile-write-maxMsecs",
+                   "Timing-tstoragefile-writeActual-maxMsecs","Timing-file-write-numOperations",
+                   "Timing-tstoragefile-write-numOperations","Timing-tstoragefile-writeActual-numOperations",
+                   "Timing-file-write-totalMegabytes","Timing-tstoragefile-write-totalMegabytes",
+                   "Timing-tstoragefile-writeActual-totalMegabytes","Timing-file-write-totalMsecs",
+                   "Timing-tstoragefile-write-totalMsecs","Timing-tstoragefile-writeActual-totalMsecs",
+                   "AvgEventTime", "TotalJobTime"]
 
     if options.logCol:
         logCollects = [options.logCol]
@@ -49,60 +54,65 @@ def main():
             tar = tar.rstrip('\n')
             logCollects.append(tar)
 
-    total = {}
-    numtarballs = 0
-    for tarball in logCollects:
-        command = ["tar", "xvf", tarball]
+    dictRun, results = [{}, {}], [{}, {}]
+
+    for i, _ in enumerate(dictRun):
+        for m in metrics:
+            dictRun[i][m] = []
+
+    for logCollect in logCollects:
+        # uncompress the big logCollect
+        command = ["tar", "xvf", logCollect]
         p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
-        tarballs = out.split()
-        for file in tarballs:
-            subcommand = ["tar", "-x", "cmsRun1/FrameworkJobReport.xml", "-zvf", file]
-
-            # making this call quiet, so /dev/null
-            subprocess.call(subcommand, stdout=open(os.devnull, 'wb'))
-            xmldoc = minidom.parse("cmsRun1/FrameworkJobReport.xml")
-            items = ( (item.getAttribute('Name'),item.getAttribute('Value')) for item in xmldoc.getElementsByTagName('Metric') )
-            matched = [item for item in items if item[0] in readMetrics or item[0] in writeMetrics ]
-            #matched = [item for item in items if item[0] in readMetrics ]
-            for ele in matched:
-                if not numtarballs:
-                    total[ele[0]] = [float(ele[1])]
-                else:
-                    total[ele[0]].append(float(ele[1]))
-            numtarballs += 1
+        logArchives = out.split()
+        for logArchive in logArchives:
+            # then uncompress each tarball inside the big logCollect
+            subcommand = ["tar", "-x", "cmsRun?/FrameworkJobReport.xml", "-zvf", logArchive] 
+            q = subprocess.Popen(subcommand, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = q.communicate()
+            cmsRuns = sorted(out.split())
+            for i, step in enumerate(cmsRuns):
+                xmldoc = minidom.parse(step)
+                items = ( (item.getAttribute('Name'),item.getAttribute('Value')) for item in xmldoc.getElementsByTagName('Metric') )
+                matched = [item for item in items if item[0] in metrics ]
+                for ele in matched:
+                    dictRun[i][ele[0]].append(float(ele[1]))
 
     # Calculates average, standard deviation (old way, no numpy available) and
     # finds the maximum and minimum values
-    results = {}
-    for k, v in total.iteritems():
-        results[k] = {}
-        results[k]['avg'] = float(sum(v))/len(v)
-        results[k]['std'] = 0
-        results[k]['min'] = v[0]
-        results[k]['max'] = v[0]
-        for i in v:
-            results[k]['std'] += (results[k]['avg'] - i) ** 2
-            results[k]['max'] = i if (i > results[k]['max']) else results[k]['max']
-            results[k]['min'] = i if (i < results[k]['min']) else results[k]['min']
-        results[k]['std'] = "%.3f" % sqrt(float(results[k]['std']/len(v)))
-
-        # Rounding in 3 digits to be nicely viewed
-        results[k]['avg'] = "%.3f" % results[k]['avg']
-        results[k]['max'] = "%.3f" % results[k]['max']
-        results[k]['min'] = "%.3f" % results[k]['min']
+    for ii, _ in enumerate(cmsRuns):
+        for k, v in dictRun[ii].iteritems():
+            results[ii][k] = {}
+            results[ii][k]['avg'] = float(sum(v))/len(v)
+            results[ii][k]['std'] = 0
+            results[ii][k]['min'] = v[0]
+            results[ii][k]['max'] = v[0]
+            for i in v:
+                results[ii][k]['std'] += (results[ii][k]['avg'] - i) ** 2
+                results[ii][k]['max'] = i if (i > results[ii][k]['max']) else results[ii][k]['max']
+                results[ii][k]['min'] = i if (i < results[ii][k]['min']) else results[ii][k]['min']
+            results[ii][k]['std'] = "%.3f" % sqrt(float(results[ii][k]['std']/len(v)))
+    
+            # Rounding in 3 digits to be nicely viewed
+            results[ii][k]['avg'] = "%.3f" % results[ii][k]['avg']
+            results[ii][k]['max'] = "%.3f" % results[ii][k]['max']
+            results[ii][k]['min'] = "%.3f" % results[ii][k]['min']
  
     # Printing outside the upper for, so we can kind of order it...
-    for metric in readMetrics: 
-        print "%-47s : %s" % (metric, results[metric])
-    print ""
-    for metric in writeMetrics: 
-        print "%-47s : %s" % (metric, results[metric])
+    for i, _ in enumerate(cmsRuns):
+        print "\nResults for cmsRun%s:" % str(i+1)
+        for metric in metrics: 
+            print "%-47s : %s" % (metric, results[i][metric])
 
     if options.output:
-        with open(options.output, 'w') as outFile:
-            json.dump(total, outFile)
-            outFile.close()
+        print ""
+        for i, _ in enumerate(cmsRuns):
+            filename = 'cmsRun' + str(i+1) + '_' + options.output
+            print "Dumping whole cmsRun%d json into %s" % (i+1, filename)
+            with open(filename, 'w') as outFile:
+                json.dump(dictRun[i], outFile)
+                outFile.close()
 
     sys.exit(0)
 
