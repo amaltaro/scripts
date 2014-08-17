@@ -5,6 +5,7 @@ import pprint
 from optparse import OptionParser
 from xml.dom import minidom
 from math import sqrt
+from datetime import datetime
 
 ### TODO: try to optimize it
 ### TODO: I'm cleaning up the write metrics because it looks like it's completely unreliable
@@ -60,7 +61,10 @@ def main():
         for m in metrics:
             dictRun[i][m] = []
 
+    numLogCollects = 0
     for logCollect in logCollects:
+        numLogCollects += 1
+        print "%s: processing logCollect number: %d" % (datetime.now().time(), numLogCollects)
         # uncompress the big logCollect
         command = ["tar", "xvf", logCollect]
         p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -81,37 +85,46 @@ def main():
 
     # Calculates average, standard deviation (old way, no numpy available) and
     # finds the maximum and minimum values
-    for ii, _ in enumerate(cmsRuns):
-        for k, v in dictRun[ii].iteritems():
-            results[ii][k] = {}
-            results[ii][k]['avg'] = float(sum(v))/len(v)
-            results[ii][k]['std'] = 0
-            results[ii][k]['min'] = v[0]
-            results[ii][k]['max'] = v[0]
+    print "%s: calculating metrics now ..." % (datetime.now().time())
+    for j, step in enumerate(dictRun):
+        if not step:
+            continue
+        for k, v in step.iteritems():
+            if not v:
+                continue
+            results[j][k] = {}
+            results[j][k]['avg'] = float(sum(v))/len(v)
+            results[j][k]['std'] = 0
+            results[j][k]['min'] = v[0]
+            results[j][k]['max'] = v[0]
             for i in v:
-                results[ii][k]['std'] += (results[ii][k]['avg'] - i) ** 2
-                results[ii][k]['max'] = i if (i > results[ii][k]['max']) else results[ii][k]['max']
-                results[ii][k]['min'] = i if (i < results[ii][k]['min']) else results[ii][k]['min']
-            results[ii][k]['std'] = "%.3f" % sqrt(float(results[ii][k]['std']/len(v)))
+                results[j][k]['std'] += (results[j][k]['avg'] - i) ** 2
+                results[j][k]['max'] = i if (i > results[j][k]['max']) else results[j][k]['max']
+                results[j][k]['min'] = i if (i < results[j][k]['min']) else results[j][k]['min']
+            results[j][k]['std'] = "%.3f" % sqrt(float(results[j][k]['std']/len(v)))
     
             # Rounding in 3 digits to be nicely viewed
-            results[ii][k]['avg'] = "%.3f" % results[ii][k]['avg']
-            results[ii][k]['max'] = "%.3f" % results[ii][k]['max']
-            results[ii][k]['min'] = "%.3f" % results[ii][k]['min']
+            results[j][k]['avg'] = "%.3f" % results[j][k]['avg']
+            results[j][k]['max'] = "%.3f" % results[j][k]['max']
+            results[j][k]['min'] = "%.3f" % results[j][k]['min']
  
     # Printing outside the upper for, so we can kind of order it...
-    for i, _ in enumerate(cmsRuns):
+    for i, step in enumerate(results):
+        if not step:
+            continue
         print "\nResults for cmsRun%s:" % str(i+1)
         for metric in metrics: 
-            print "%-47s : %s" % (metric, results[i][metric])
+            print "%-47s : %s" % (metric, step[metric])
 
     if options.output:
         print ""
-        for i, _ in enumerate(cmsRuns):
+        for i, step in enumerate(dictRun):
+            if not step['TotalJobTime']:
+                continue
             filename = 'cmsRun' + str(i+1) + '_' + options.output
             print "Dumping whole cmsRun%d json into %s" % (i+1, filename)
             with open(filename, 'w') as outFile:
-                json.dump(dictRun[i], outFile)
+                json.dump(step, outFile)
                 outFile.close()
 
     sys.exit(0)
