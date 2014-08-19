@@ -192,8 +192,9 @@ echo "*** Posting WMAgent: post ***"
 ### TODO TODO TODO TODO You have to manually add patches here
 echo "*** Applying deployment patches ***"
 cd $CURRENT
+wget -nv https://github.com/dmwm/WMCore/pull/5277.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # backport fix for when PhEDEx return SE null
+wget -nv https://github.com/dmwm/WMCore/commit/c6e7bccdd75fb684c85ee583e4489c022b5e1c13.patch -O - | patch -d apps/wmagent/data/couchapps/WorkQueue/lists/ -p 5  # remove workqueue/couch logging
 #wget -nv https://github.com/ticoann/WMCore/commit/e30bd067d2733745e1cbb70af7488156ce484fee.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # sanitize couch url logs
-#wget -nv https://github.com/dmwm/WMCore/pull/5217.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # temp fix for lumi report on workloadsummary
 cd -
 echo "Done!" && echo
 
