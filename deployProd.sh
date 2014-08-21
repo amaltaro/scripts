@@ -143,8 +143,10 @@ if [ "x$MATCH_ORACLE_USER" != "x" ]; then
   FLAVOR=oracle
 fi
 
-if [ -d "/data1" ]; then
-  DATA_SIZE=`df -h | grep '/data1' | awk '{print $2}'`
+DATA_SIZE=`df -h | grep '/data1' | awk '{print $2}'`
+if [[ -z $DATA_SIZE ]]; then
+  DATA1=false
+else
   echo "Partition /data1 available! Total size: $DATA_SIZE"
   sleep 0.5
   while true; do
@@ -193,8 +195,8 @@ echo "*** Posting WMAgent: post ***"
 echo "*** Applying deployment patches ***"
 cd $CURRENT
 wget -nv https://github.com/dmwm/WMCore/pull/5277.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # backport fix for when PhEDEx return SE null
+wget -nv https://github.com/dmwm/WMCore/pull/5287.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # backport fix for when PhEDEx return SE null
 wget -nv https://github.com/dmwm/WMCore/commit/c6e7bccdd75fb684c85ee583e4489c022b5e1c13.patch -O - | patch -d apps/wmagent/data/couchapps/WorkQueue/lists/ -p 5  # remove workqueue/couch logging
-#wget -nv https://github.com/ticoann/WMCore/commit/e30bd067d2733745e1cbb70af7488156ce484fee.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # sanitize couch url logs
 cd -
 echo "Done!" && echo
 
@@ -305,6 +307,6 @@ echo "  2) Double check agent configuration: less config/wmagent/config.py"
 echo "  3) Start the agent with: \$manage start-agent"
 echo "  4) Remove the old WMAgent version when possible"
 echo "  $FINAL_MSG"
-echo && echo "Have a nice day!" && echo
+echo "Have a nice day!" && echo
 
 exit 0
