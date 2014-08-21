@@ -4,17 +4,24 @@ import subprocess
 import pprint
 from optparse import OptionParser
 from xml.dom import minidom
-from math import sqrt
+from xml.parsers.expat import ExpatError
+from math import sqrt, isnan, isinf
 from datetime import datetime
+# Awesome, there is numpy in CMSSW env
+from numpy import mean, std
 
 ### TODO: try to optimize it
 ### TODO: I'm cleaning up the write metrics because it looks like it's completely unreliable
 ### TODO: read metrics are also not very reliable, but ... let's keep them a bit longer
-  
+
 def main():
     """
     Provide a logCollect tarball as input (in your local machine) or a text file
     with their name.
+
+    export SCRAM_ARCH=slc5_amd64_gcc462
+    cd /build/relval/CMSSW_5_3_0/src/
+    cmsenv
     """
     usage = "Usage: %prog -l logCollect -i inputFile [-o outputFile] [--short]"
     parser = OptionParser(usage = usage)
@@ -28,9 +35,12 @@ def main():
         parser.error('You must either provide a logCollect tarball or a file with their names')
         sys.exit(1)
     if options.short:
-        metrics = ["Timing-file-read-maxMsecs","Timing-file-read-numOperations",
-                   "Timing-file-read-totalMegabytes","Timing-file-read-totalMsecs",
-                   "Timing-file-write-totalMegabytes","AvgEventTime", "TotalJobTime"]
+#        metrics = ["Timing-file-read-maxMsecs","Timing-file-read-numOperations",
+#                   "Timing-file-read-totalMegabytes","Timing-file-read-totalMsecs",
+#                   "Timing-file-write-totalMegabytes","AvgEventTime","TotalJobTime","TotalJobCPU"]
+        metrics = ["Timing-tstoragefile-read-maxMsecs","Timing-tstoragefile-read-numOperations",
+                   "Timing-tstoragefile-read-totalMegabytes","Timing-tstoragefile-read-totalMsecs",
+                   "Timing-file-write-totalMegabytes","AvgEventTime","TotalJobTime","TotalJobCPU"]
     else:
         metrics = ["Timing-file-read-maxMsecs","Timing-tstoragefile-read-maxMsecs",
                    "Timing-tstoragefile-readActual-maxMsecs","Timing-file-read-numOperations",
@@ -71,20 +81,24 @@ def main():
         out, err = p.communicate()
         logArchives = out.split()
         for logArchive in logArchives:
+            print logArchive
             # then uncompress each tarball inside the big logCollect
             subcommand = ["tar", "-x", "cmsRun?/FrameworkJobReport.xml", "-zvf", logArchive] 
             q = subprocess.Popen(subcommand, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             out, err = q.communicate()
             cmsRuns = sorted(out.split())
             for i, step in enumerate(cmsRuns):
-                xmldoc = minidom.parse(step)
+                try:
+                    xmldoc = minidom.parse(step)
+                except ExpatError:
+                    print "Ops, that's a very BAD file %s" % step
+                    continue
                 items = ( (item.getAttribute('Name'),item.getAttribute('Value')) for item in xmldoc.getElementsByTagName('Metric') )
                 matched = [item for item in items if item[0] in metrics ]
+                xmldoc.unlink()
                 for ele in matched:
                     dictRun[i][ele[0]].append(float(ele[1]))
 
-    # Calculates average, standard deviation (old way, no numpy available) and
-    # finds the maximum and minimum values
     print "%s: calculating metrics now ..." % (datetime.now().time())
     for j, step in enumerate(dictRun):
         if not step:
@@ -93,18 +107,20 @@ def main():
             if not v:
                 continue
             results[j][k] = {}
-            results[j][k]['avg'] = float(sum(v))/len(v)
-            results[j][k]['std'] = 0
-            results[j][k]['min'] = v[0]
-            results[j][k]['max'] = v[0]
-            for i in v:
-                results[j][k]['std'] += (results[j][k]['avg'] - i) ** 2
-                results[j][k]['max'] = i if (i > results[j][k]['max']) else results[j][k]['max']
-                results[j][k]['min'] = i if (i < results[j][k]['min']) else results[j][k]['min']
-            results[j][k]['std'] = "%.3f" % sqrt(float(results[j][k]['std']/len(v)))
+            results[j][k]['avg'] = mean(v)
+            results[j][k]['std'] = std(v)
+            results[j][k]['min'] = min(v)
+            results[j][k]['max'] = max(v)
     
+            # check if any of them are NaN or Inf
+#            for kk, vv in results[j][k].iteritems():
+#                if isnan(vv) or isinf(vv):
+#                    halfLen = len(v)/2
+#                    results[j][k][kk] = mean(v[:halfLen]) if kk == 'avg' else std(v[:halfLen])
+#                    print "WARN: %s was adapted to half the values" % kk 
             # Rounding in 3 digits to be nicely viewed
             results[j][k]['avg'] = "%.3f" % results[j][k]['avg']
+            results[j][k]['std'] = "%.3f" % results[j][k]['std']
             results[j][k]['max'] = "%.3f" % results[j][k]['max']
             results[j][k]['min'] = "%.3f" % results[j][k]['min']
  
