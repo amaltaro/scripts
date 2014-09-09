@@ -5,7 +5,6 @@ import pprint
 from optparse import OptionParser
 from xml.dom import minidom
 from xml.parsers.expat import ExpatError
-from math import sqrt, isnan, isinf
 from datetime import datetime
 # Awesome, there is numpy in CMSSW env
 from numpy import mean, std
@@ -40,7 +39,8 @@ def main():
 #                   "Timing-file-write-totalMegabytes","AvgEventTime","TotalJobTime","TotalJobCPU"]
         metrics = ["Timing-tstoragefile-read-maxMsecs","Timing-tstoragefile-read-numOperations",
                    "Timing-tstoragefile-read-totalMegabytes","Timing-tstoragefile-read-totalMsecs",
-                   "Timing-file-write-totalMegabytes","AvgEventTime","TotalJobTime","TotalJobCPU"]
+                   "Timing-file-write-totalMegabytes","AvgEventTime","TotalJobTime","TotalJobCPU",
+                   "CPUModels","averageCoreSpeed","totalCPUs"]
     else:
         metrics = ["Timing-file-read-maxMsecs","Timing-tstoragefile-read-maxMsecs",
                    "Timing-tstoragefile-readActual-maxMsecs","Timing-file-read-numOperations",
@@ -54,7 +54,7 @@ def main():
                    "Timing-file-write-totalMegabytes","Timing-tstoragefile-write-totalMegabytes",
                    "Timing-tstoragefile-writeActual-totalMegabytes","Timing-file-write-totalMsecs",
                    "Timing-tstoragefile-write-totalMsecs","Timing-tstoragefile-writeActual-totalMsecs",
-                   "AvgEventTime", "TotalJobTime"]
+                   "AvgEventTime", "TotalJobTime","CPUModels","averageCoreSpeed","totalCPUs"]
 
     if options.logCol:
         logCollects = [options.logCol]
@@ -97,7 +97,10 @@ def main():
                 matched = [item for item in items if item[0] in metrics ]
                 xmldoc.unlink()
                 for ele in matched:
-                    dictRun[i][ele[0]].append(float(ele[1]))
+                    if ele[0] != 'CPUModels':
+                        dictRun[i][ele[0]].append(float(ele[1]))
+                    else:
+                        dictRun[i][ele[0]].append(str(ele[1]))
 
     print "%s: calculating metrics now ..." % (datetime.now().time())
     for j, step in enumerate(dictRun):
@@ -106,24 +109,16 @@ def main():
         for k, v in step.iteritems():
             if not v:
                 continue
+            elif k == 'CPUModels':
+                results[j][k] = list(set(v))
+                continue
             results[j][k] = {}
-            results[j][k]['avg'] = mean(v)
-            results[j][k]['std'] = std(v)
-            results[j][k]['min'] = min(v)
-            results[j][k]['max'] = max(v)
-    
-            # check if any of them are NaN or Inf
-#            for kk, vv in results[j][k].iteritems():
-#                if isnan(vv) or isinf(vv):
-#                    halfLen = len(v)/2
-#                    results[j][k][kk] = mean(v[:halfLen]) if kk == 'avg' else std(v[:halfLen])
-#                    print "WARN: %s was adapted to half the values" % kk 
             # Rounding in 3 digits to be nicely viewed
-            results[j][k]['avg'] = "%.3f" % results[j][k]['avg']
-            results[j][k]['std'] = "%.3f" % results[j][k]['std']
-            results[j][k]['max'] = "%.3f" % results[j][k]['max']
-            results[j][k]['min'] = "%.3f" % results[j][k]['min']
- 
+            results[j][k]['avg'] = "%.3f" % mean(v)
+            results[j][k]['std'] = "%.3f" % std(v)
+            results[j][k]['min'] = "%.3f" % min(v)
+            results[j][k]['max'] = "%.3f" % max(v)
+    
     # Printing outside the upper for, so we can kind of order it...
     for i, step in enumerate(results):
         if not step:
