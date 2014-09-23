@@ -28,6 +28,19 @@ def parseData(json_file_name, metric, step):
     # open json
     inputdata = json.load(open(json_file_name))
 
+    # hack to get rid of missing keys
+    twoSteps = False
+    for job in inputdata:
+        if 'cmsRun2' in job:
+            twoSteps = True
+            break
+    # remove jobs that don't have both cmsRuns
+    if twoSteps:
+        newinputdata = [ job for job in inputdata if 'cmsRun1' in job and 'cmsRun2' in job ]
+    else:
+        newinputdata = [ job for job in inputdata if step in job ]
+    inputdata = newinputdata
+
     # available properties
     metrics = [ m for m in inputdata[0][step].keys() ]
 
@@ -36,6 +49,9 @@ def parseData(json_file_name, metric, step):
         for job in inputdata:
             values.append(float(job[step]['Timing-tstoragefile-read-totalMegabytes']/
                                 job[step]['TotalJobTime']))
+#    elif metric == 'AvgEventTimeHS06':
+#        for job in inputdata:
+#            values.append(float(job[step]['AvgEventTime']*job[step]['HS06']))
     elif metric == 'CPUModels':
         modelsCore = [ (job[step]['CPUModels'], job[step]['totalCPUs']) for job in inputdata ]
         print 'Frequency of CPUModels x TotalCores:\n%r' % Counter(modelsCore)
@@ -44,7 +60,7 @@ def parseData(json_file_name, metric, step):
         for pair in modelsCore:
             values = []
             values = [ job[step]['AvgEventTime'] for job in inputdata if job[step]['CPUModels'] in pair[0] and
-                       job[step]['totalCPUs'] == pair[1] ]
+                           job[step]['totalCPUs'] == pair[1] ]
             drawPlot(json_file_name, metric, step, values, ''.join(pair[0].split()))
         return
     else:
@@ -103,7 +119,6 @@ def drawPlot(jsonName, metric, step, values, model=''):
     c1.SaveAs(jsonName.replace('.json','_') + metric + '_' + step + model + '.pdf')
 #    c1.SaveAs(json_file_name.replace('.json','') + '_' + property + '.gif')
     return
-
 
 def main():
     usage="%prog <options>\n\nPrepares plot from input JSON file\n"
