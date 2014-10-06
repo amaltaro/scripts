@@ -1,0 +1,5 @@
+MonteCarloFromGEN_LumiMask.json,B2G-Summer12-00736_LumiMask,Summer12
+ReDigi_LumiMask.json,BPH-Spring14miniaod-00004_LumiMask,Spring14
+ReDigi_cmsRun2_LumiMask.json,B2G-Summer12DR53X-00743_LumiMask,Summer12DR53X
+ReReco_LumiMask.json,ObjID2012DDoubleElectron_LumiMask,Run2012D
+TaskChain_Data_LumiMask.json,700_pre11_TaskChain_Data_LumiMask,CMSSW_7_0_0_pre11
