@@ -339,6 +339,7 @@ def main(argv=None):
     dbs_out = {}
     dbs_num_files = {}
     dbs_num_events = {}
+    dbs_num_lumis = {}
     dbs_dset_size = {}
     dbs_block_se = {}
     dbs_summary = {}
@@ -374,23 +375,27 @@ def main(argv=None):
             dbs_summary[dset][0]['num_event'] += item['num_event'] 
             dbs_summary[dset][0]['num_lumi'] += item['num_lumi'] 
         dbs_summary[dset][0]['prep_id'] = dbs_out[dset]['prep_id']
+        dbs_num_lumis[dset] = dbs_summary[dset][0]['num_lumi']
 
     ### Perform the FINAL checks
     print ''+split_line 
-    print '|' + ' ' * 30 + '| CouchDB | PhEDEx | DBS | '
+    print '|' + ' ' * 28 + '| CouchDB | PhEDEx | DBS | '
     print separ_line
 
     # Perform checks among the 3 services: dset_name, dset_files and dset_size
     comp_res = list_cmp(couch_summary.keys(), phedex_summary.keys(), dbs_summary.keys())
-    print '| Same output dataset name     | {comp_res:7s} | {comp_res:6s} | {comp_res:3s} |'.format(comp_res=comp_res)
+    print '| Same dataset name          | {comp_res:7s} | {comp_res:6s} | {comp_res:3s} |'.format(comp_res=comp_res)
     comp_res = list_cmp(couch_num_files, phedex_num_files, dbs_num_files)
-    print '| Same output number of files  | {comp_res:7s} | {comp_res:6s} | {comp_res:3s} | '.format(comp_res=comp_res)
+    print '| Same number of files       | {comp_res:7s} | {comp_res:6s} | {comp_res:3s} | '.format(comp_res=comp_res)
     comp_res = list_cmp(couch_dset_size, phedex_dset_size, dbs_dset_size)
-    print '| Same output dataset size     | {comp_res:7s} | {comp_res:6s} | {comp_res:3s} | '.format(comp_res=comp_res)
+    print '| Same dataset size          | {comp_res:7s} | {comp_res:6s} | {comp_res:3s} | '.format(comp_res=comp_res)
 
     # Perform check between Couch and DBS only: num_events
     comp_res = list_cmp(couch_num_events, dbs_num_events)
-    print '| Same output number of events | %-7s | %-6s | %-3s |' % (comp_res, '--', comp_res)
+    print '| Same number of events      | %-7s | %-6s | %-3s |' % (comp_res, '--', comp_res)
+
+    comp_res = list_cmp([couch_input['TotalInputLumis']], list(set(dbs_num_lumis.values())))
+    print '| Same number of lumis       | %-7s | %-6s | %-3s |' % (comp_res, '--', comp_res)
 
     # Check whether all blocks are closed
     phe_res, dbs_res = 'ok', 'ok'
@@ -404,11 +409,11 @@ def main(argv=None):
                 dbs_res = 'NO'
                 break
 
-    print '| Are all blocks closed?       | %-7s | %-6s | %-3s |' % ('--', phe_res, dbs_res)
+    print '| Are all blocks closed?     | %-7s | %-6s | %-3s |' % ('--', phe_res, dbs_res)
 
     # Check whether files are registered in the same SE
     comp_res = list_cmp(phedex_block_se, dbs_block_se)
-    print '| Are blocks in the same SE?   | %-7s | %-6s | %-3s |' % ('--', comp_res, comp_res)
+    print '| Are blocks in the same SE? | %-7s | %-6s | %-3s |' % ('--', comp_res, comp_res)
     print split_line
 
     ### Starts VERBOSE mode for the information retrieved so far
