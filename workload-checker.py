@@ -121,23 +121,25 @@ def dbs_info(dataset, cert,dbs_main):
 
     return dbs_out 
 
-def list_cmp(list1, list2, list3=[]):
+def list_cmp(d1, d2, d3 = []):
     """
     Receives list of things (datasets, events, sizes) and compare them.
     """
-    out = []
-    list1 = sorted(list1)
-    list2 = sorted(list2)
-    list3 = sorted(list3)
-    if not list3:
-        if list1 == list2:
-            return 'OK'
+    if isinstance(d1, list): 
+        if not d3:
+            if set(d1) ^ set(d2):
+                return 'NO'
         else:
-            return 'NO'
-    if list1 == list2 and list1 == list3:
-        return 'OK' 
+            if set(d1) ^ set(d2) or set(d1) ^ set(d3):
+                return 'NO'
     else:
-        return 'NO'
+        if not d3:
+            if set(d1.values()) ^ set(d2.values()):
+                return 'NO'
+        else:
+            if set(d1.values()) ^ set(d2.values()) or set(d1.values()) ^ set(d3.values()):
+                return 'NO'
+    return 'ok'
 
 def couch_verbose(couch_input, couch_summary, verbose=False):
     """
@@ -268,7 +270,6 @@ def main(argv=None):
     ### Retrieve CouchDB information
     # Get workload summary,  output samples, num of files and events
     couch_out = couch_info(reqName, cert)
-    #couch_datasets = [i for i in couch_out["workflow_summary"]["output"].keys()]
     couch_datasets = reqmgr_outputs(reqName, cert)
     reqmgr_outputs
     couch_num_files = {}
@@ -392,8 +393,7 @@ def main(argv=None):
     print '| Same output number of events | %-7s | %-6s | %-3s |' % (comp_res, '--', comp_res)
 
     # Check whether all blocks are closed
-    phe_res, dbs_res = 'OK', 'OK'
-#    for dset in phedex_datasets:
+    phe_res, dbs_res = 'ok', 'ok'
     for dset in couch_datasets:
         for b in phedex_summary[dset]:
             if b['is_open'] == 'y':
