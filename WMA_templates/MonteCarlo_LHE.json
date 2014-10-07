@@ -19,7 +19,7 @@
     "Memory": 2300,
     "LheInputFiles": "True",
     "EventsPerJob": 500000,
-    "EventsPerLumi": 200,
+    "EventsPerLumi": 500,
     "SizePerEvent": 1,
     "FirstEvent": 1,
     "FirstLumi": 1,
@@ -49,7 +49,7 @@
     "SubscriptionPriority": "Low",
     "CustodialSubType" : "Move",
     "BlockCloseMaxWaitTime" : 14400,
-    "BlockCloseMaxFiles" : 5,
+    "BlockCloseMaxFiles" : 10,
     "BlockCloseMaxEvents" : 20000000,
     "BlockCloseMaxSize" : 5000000000000
 }
