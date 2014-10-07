@@ -19,7 +19,7 @@
     "ConfigCacheUrl": "https://cmsweb.cern.ch/couchdb",
     "StepOneConfigCacheID": "5e331f921723ff91e11687f3a68c7cd2",
     "KeepStepOneOutput" : "True",
-    "PrepID": "BPH-Spring14miniaod-00004",            
+    "PrepID": "BPH-Spring14miniaod-Lumi-00004",            
     "Group": "DATAOPS",
     "LumiList": {"1": [[643, 730], [931,940], [1810,1840]]},
     "SplittingAlgo": "LumiBased",

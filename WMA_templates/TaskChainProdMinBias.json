@@ -17,6 +17,7 @@
         "SizePerEvent": 1234,
         "TimePerEvent": 20,
         "TaskChain": 3,
+        "PrepID": "TaskChain-ProdMinBias-700pre11"
         "mergedLFNBase": "/store/relval",
         "unmergedLFNBase": "/store/unmerged",
         "Task1": {"AcquisitionEra": "CMSSW_7_0_0_pre11",

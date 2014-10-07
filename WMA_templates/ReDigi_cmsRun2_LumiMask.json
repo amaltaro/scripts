@@ -22,7 +22,7 @@
     "StepOneOutputModuleName": "RAWSIMoutput",
     "StepTwoConfigCacheID": "13781a5a5bbb4736e868a764676b0dd9",
     "KeepStepTwoOutput": "True",        
-    "PrepID": "B2G-Summer12DR53X-00743",            
+    "PrepID": "B2G-Summer12DR53X-Lumi-00743",            
     "Group": "DATAOPS",
     "LumiList": {"1": [[11, 11], [96,96], [203,204], [23,23], [132,132], [72,72]]},
     "SplittingAlgo": "LumiBased",

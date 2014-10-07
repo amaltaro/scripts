@@ -17,7 +17,7 @@
     "ConfigCacheID": "1ad063a0d73c1d81143b4182cbf84793",
     "ConfigCacheUrl": "https://cmsweb.cern.ch/couchdb",
     "DbsUrl": "https://cmsweb-testbed.cern.ch/dbs/int/global/DBSReader",
-    "PrepID": "B2G-Summer12-00736",
+    "PrepID": "B2G-Summer12-Lumi-00736",
     "Group": "DATAOPS",
     "TotalTime": 28800,
     "TimePerEvent": 168.79,
