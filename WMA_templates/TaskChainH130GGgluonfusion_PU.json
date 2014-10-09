@@ -20,7 +20,7 @@
         "SizePerEvent": 1234,
         "TimePerEvent": 20,
         "TaskChain": 2,
-        "PrepID": "TaskChain-H130GGgluon-700pre11"
+        "PrepID": "TaskChain-H130GGgluon-700pre11",
         "mergedLFNBase": "/store/relval",
         "unmergedLFNBase": "/store/unmerged",
         "Task1": {"AcquisitionEra": "CMSSW_7_0_0_pre11",

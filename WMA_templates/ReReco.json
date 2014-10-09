@@ -25,7 +25,7 @@
     "DbsUrl": "https://cmsweb-testbed.cern.ch/dbs/int/global/DBSReader",
     "inputMode": "couchDB",
     "Scenario": "pp",
-    "PrepID": "ReReco-Prep-Alan"
+    "PrepID": "ReReco-Prep-Alan",
     "OpenRunningTimeout" : 0
 },
 "changeSplitting":
