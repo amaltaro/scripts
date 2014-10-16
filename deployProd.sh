@@ -23,8 +23,8 @@
 ### Usage:               -n <agent_number> Agent number to be set when more than 1 agent connected to the same team (defaults to 0)
 ### Usage:
 ### Usage: deployProd.sh -w <wma_version> -c <cmsweb_tag> -t <team_name> [-s <scram_arch>] [-r <repository>] [-n <agent_number>]
-### Usage: Example: deployProd.sh -w 0.9.95b_patch1 -c HG1406e -t mc -n 2
-### Usage: Example: deployProd.sh -w 0.9.95b -c HG1406e -t testbed-relval -s slc6_amd64_gcc481 -r comp=comp.pre.amaltaro
+### Usage: Example: sh deployProd.sh -w 0.9.95b.patch2 -c HG1406e -t mc -n 2
+### Usage: Example: sh deployProd.sh -w 1.0.0 -c HG1410d -t testbed-relval -s slc6_amd64_gcc481 -r comp=comp.pre.amaltaro
 ### Usage:
 ### TODO:
 ###  - automatize the way we fetch patches
@@ -35,7 +35,7 @@ DEPLOY_DIR=$BASE_DIR/wmagent
 ENV_FILE=/data/admin/wmagent/env.sh 
 CURRENT=/data/srv/wmagent/current
 MANAGE=/data/srv/wmagent/current/config/wmagent/ 
-OP_EMAIL=alan.malta@cern.ch
+OP_EMAIL=cms-comp-ops-workflow-team@cern.ch
 
 # These values may be overwritten by the arguments provided in the command line
 WMA_ARCH=slc5_amd64_gcc461
@@ -173,7 +173,10 @@ mkdir -p $DEPLOY_DIR || true
 cd $BASE_DIR
 rm -rf deployment deployment.zip deployment-${CMSWEB_TAG};
 wget -nv -O deployment.zip --no-check-certificate https://github.com/dmwm/deployment/archive/$CMSWEB_TAG.zip;
-unzip -q deployment.zip && cd deployment-$CMSWEB_TAG
+unzip -q deployment.zip && 
+cd deployment-$CMSWEB_TAG
+### Applying patch for MariaDB
+wget -nv https://github.com/jmonkevicius/deployment/commit/fb33c9e12365d760b0ca27075d0fd5285df77503.patch -O - | patch -p 1
 
 echo "*** Removing the current crontab ***"
 /usr/bin/crontab -r;
@@ -194,9 +197,13 @@ echo "*** Posting WMAgent: post ***"
 ### TODO TODO TODO TODO You have to manually add patches here
 echo "*** Applying deployment patches ***"
 cd $CURRENT
-wget -nv https://github.com/dmwm/WMCore/pull/5277.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # backport fix for when PhEDEx return SE null
-wget -nv https://github.com/dmwm/WMCore/pull/5287.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # backport fix for when PhEDEx return SE null
-wget -nv https://github.com/dmwm/WMCore/commit/c6e7bccdd75fb684c85ee583e4489c022b5e1c13.patch -O - | patch -d apps/wmagent/data/couchapps/WorkQueue/lists/ -p 5  # remove workqueue/couch logging
+wget -nv https://github.com/dmwm/WMCore/pull/5375.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # propagate multicore settings to job plugins
+wget -nv https://github.com/dmwm/WMCore/pull/5376.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # modify condor plugins for new multithread settings
+wget -nv https://github.com/dmwm/WMCore/pull/5381.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # clean up of dbs2 urls
+wget -nv https://github.com/dmwm/WMCore/pull/5384.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # properly handle None in JobAccountant
+wget -nv https://github.com/dmwm/WMCore/pull/5385.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # add function for manual intervention
+wget -nv https://github.com/dmwm/WMCore/pull/5397.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fixes filterEfficiency for TaskChain
+wget -nv https://github.com/dmwm/WMCore/pull/5405.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fix number of cores for multicore
 cd -
 echo "Done!" && echo
 
@@ -229,6 +236,7 @@ echo "Done!" && echo
 sleep 5
 
 echo "*** Checking if couchdb migration is needed ***"
+echo -e "\n[query_server_config]\nos_process_limit = 50" >> $CURRENT/config/couchdb/local.ini
 if [ "$DATA1" = true ]; then
   ./manage stop-services
   sleep 5
