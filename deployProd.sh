@@ -176,7 +176,7 @@ wget -nv -O deployment.zip --no-check-certificate https://github.com/dmwm/deploy
 unzip -q deployment.zip && 
 cd deployment-$CMSWEB_TAG
 ### Applying patch for MariaDB
-if [ "$WMA_ARCH" == "slc6_amd64_gcc481" && "$FLAVOR" == "mysql" ]; then
+if [[ "$WMA_ARCH" == "slc6_amd64_gcc481" && "$FLAVOR" == "mysql" ]]; then
   wget -nv https://github.com/amaltaro/scripts/commit/04593133d62e4f8f9c724b9fe43ebe3c8dfe34cd.patch -O - | patch -p 1
 fi
 
