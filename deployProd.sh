@@ -177,7 +177,7 @@ unzip -q deployment.zip &&
 cd deployment-$CMSWEB_TAG
 ### Applying patch for MariaDB
 if [ "$WMA_ARCH" == "slc6_amd64_gcc481" && "$FLAVOR" == "mysql" ]; then
-  wget -nv https://github.com/jmonkevicius/deployment/commit/fb33c9e12365d760b0ca27075d0fd5285df77503.patch -O - | patch -p 1
+  wget -nv https://github.com/amaltaro/scripts/commit/04593133d62e4f8f9c724b9fe43ebe3c8dfe34cd.patch -O - | patch -p 1
 fi
 
 echo "*** Removing the current crontab ***"
