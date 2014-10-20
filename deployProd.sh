@@ -24,7 +24,7 @@
 ### Usage:
 ### Usage: deployProd.sh -w <wma_version> -c <cmsweb_tag> -t <team_name> [-s <scram_arch>] [-r <repository>] [-n <agent_number>]
 ### Usage: Example: sh deployProd.sh -w 0.9.95b.patch2 -c HG1406e -t mc -n 2
-### Usage: Example: sh deployProd.sh -w 1.0.0 -c HG1410d -t testbed-relval -s slc6_amd64_gcc481 -r comp=comp.pre.amaltaro
+### Usage: Example: sh deployProd.sh -w 1.0.0.patch2 -c HG1410d -t testbed-relval -s slc6_amd64_gcc481 -r comp=comp.pre.amaltaro
 ### Usage:
 ### TODO:
 ###  - automatize the way we fetch patches
@@ -176,7 +176,9 @@ wget -nv -O deployment.zip --no-check-certificate https://github.com/dmwm/deploy
 unzip -q deployment.zip && 
 cd deployment-$CMSWEB_TAG
 ### Applying patch for MariaDB
-wget -nv https://github.com/jmonkevicius/deployment/commit/fb33c9e12365d760b0ca27075d0fd5285df77503.patch -O - | patch -p 1
+if [ "$WMA_ARCH" == "slc6_amd64_gcc481" && "$FLAVOR" == "mysql" ]; then
+  wget -nv https://github.com/jmonkevicius/deployment/commit/fb33c9e12365d760b0ca27075d0fd5285df77503.patch -O - | patch -p 1
+fi
 
 echo "*** Removing the current crontab ***"
 /usr/bin/crontab -r;
@@ -197,13 +199,8 @@ echo "*** Posting WMAgent: post ***"
 ### TODO TODO TODO TODO You have to manually add patches here
 echo "*** Applying deployment patches ***"
 cd $CURRENT
-wget -nv https://github.com/dmwm/WMCore/pull/5375.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # propagate multicore settings to job plugins
-wget -nv https://github.com/dmwm/WMCore/pull/5376.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # modify condor plugins for new multithread settings
-wget -nv https://github.com/dmwm/WMCore/pull/5381.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # clean up of dbs2 urls
-wget -nv https://github.com/dmwm/WMCore/pull/5384.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # properly handle None in JobAccountant
-wget -nv https://github.com/dmwm/WMCore/pull/5385.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # add function for manual intervention
-wget -nv https://github.com/dmwm/WMCore/pull/5397.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fixes filterEfficiency for TaskChain
-wget -nv https://github.com/dmwm/WMCore/pull/5405.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fix number of cores for multicore
+#wget -nv https://github.com/dmwm/WMCore/pull/5375.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # propagate multicore settings to job plugins
+#wget -nv https://github.com/dmwm/WMCore/pull/5376.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # modify condor plugins for new multithread settings
 cd -
 echo "Done!" && echo
 
