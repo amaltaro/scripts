@@ -253,6 +253,7 @@ echo "Done!" && echo
 # tweak configuration
 ###
 echo "*** Tweaking configuration ***"
+sed -i "s+couchProcessThreshold = 25+couchProcessThreshold = 50+" $MANAGE/config.py
 sed -i "s+team1,team2,cmsdataops+$TEAMNAME+" $MANAGE/config.py
 sed -i "s+Agent.agentNumber = 0+Agent.agentNumber = $AG_NUM+" $MANAGE/config.py
 sed -i "s+OP EMAIL+$OP_EMAIL+" $MANAGE/config.py
