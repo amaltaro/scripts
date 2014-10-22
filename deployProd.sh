@@ -172,9 +172,12 @@ echo " - Use /data1     : $DATA1" && echo
 mkdir -p $DEPLOY_DIR || true
 cd $BASE_DIR
 rm -rf deployment deployment.zip deployment-${CMSWEB_TAG};
-wget -nv -O deployment.zip --no-check-certificate https://github.com/dmwm/deployment/archive/$CMSWEB_TAG.zip;
-unzip -q deployment.zip && 
+
+set -e 
+wget -nv -O deployment.zip --no-check-certificate https://github.com/dmwm/deployment/archive/$CMSWEB_TAG.zip
+unzip -q deployment.zip
 cd deployment-$CMSWEB_TAG
+set +e 
 ### Applying patch for MariaDB
 if [[ "$WMA_ARCH" == "slc6_amd64_gcc481" && "$FLAVOR" == "mysql" ]]; then
   cd wmagent
@@ -187,16 +190,16 @@ echo "*** Removing the current crontab ***"
 echo "Done!" && echo
 
 echo "*** Bootstrapping WMAgent: prep ***"
-(cd $BASE_DIR/deployment-$CMSWEB_TAG
-./Deploy -R wmagent@$WMA_TAG -s prep -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
+cd $BASE_DIR/deployment-$CMSWEB_TAG
+set -e
+./Deploy -R wmagent@$WMA_TAG -s prep -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent
 
-echo "*** Deploying WMAgent: sw ***"
-(cd $BASE_DIR/deployment-$CMSWEB_TAG
-./Deploy -R wmagent@$WMA_TAG -s sw -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
+echo -e "\n*** Deploying WMAgent: sw ***"
+./Deploy -R wmagent@$WMA_TAG -s sw -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent
 
-echo "*** Posting WMAgent: post ***"
-(cd $BASE_DIR/deployment-$CMSWEB_TAG
-./Deploy -R wmagent@$WMA_TAG -s post -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent) && echo
+echo -e "\n*** Posting WMAgent: post ***"
+./Deploy -R wmagent@$WMA_TAG -s post -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent
+set +e
 
 ### TODO TODO TODO TODO You have to manually add patches here
 echo "*** Applying deployment patches ***"
