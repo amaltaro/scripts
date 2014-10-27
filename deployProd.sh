@@ -185,11 +185,11 @@ if [[ "$WMA_ARCH" == "slc6_amd64_gcc481" && "$FLAVOR" == "mysql" ]]; then
   cd - 
 fi
 
-echo "*** Removing the current crontab ***"
+echo -e "\n*** Removing the current crontab ***"
 /usr/bin/crontab -r;
-echo "Done!" && echo
+echo "Done!"
 
-echo "*** Bootstrapping WMAgent: prep ***"
+echo -e "\n*** Bootstrapping WMAgent: prep ***"
 cd $BASE_DIR/deployment-$CMSWEB_TAG
 set -e
 ./Deploy -R wmagent@$WMA_TAG -s prep -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent
@@ -202,10 +202,10 @@ echo -e "\n*** Posting WMAgent: post ***"
 set +e
 
 ### TODO TODO TODO TODO You have to manually add patches here
-echo "*** Applying deployment patches ***"
+echo -e "\n*** Applying deployment patches ***"
 cd $CURRENT
 #wget -nv https://github.com/dmwm/WMCore/pull/5375.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # propagate multicore settings to job plugins
-#wget -nv https://github.com/dmwm/WMCore/pull/5376.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # modify condor plugins for new multithread settings
+wget -nv https://github.com/dmwm/WMCore/pull/5422.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3   # check task field more finely
 cd -
 echo "Done!" && echo
 
