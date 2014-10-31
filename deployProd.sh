@@ -204,8 +204,9 @@ set +e
 ### TODO TODO TODO TODO You have to manually add patches here
 echo -e "\n*** Applying deployment patches ***"
 cd $CURRENT
-#wget -nv https://github.com/dmwm/WMCore/pull/5375.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # propagate multicore settings to job plugins
-wget -nv https://github.com/dmwm/WMCore/pull/5422.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3   # check task field more finely
+wget -nv https://github.com/dmwm/WMCore/pull/5422.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # check task field more finely
+wget -nv https://github.com/dmwm/WMCore/pull/5434.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # remove whitespaces from (Ext)Desired_Sites
+wget -nv https://github.com/dmwm/WMCore/pull/5433.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # protects when condor returns 'undefined'
 cd -
 echo "Done!" && echo
 
