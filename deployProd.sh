@@ -24,7 +24,7 @@
 ### Usage:
 ### Usage: deployProd.sh -w <wma_version> -c <cmsweb_tag> -t <team_name> [-s <scram_arch>] [-r <repository>] [-n <agent_number>]
 ### Usage: Example: sh deployProd.sh -w 0.9.95b.patch2 -c HG1406e -t mc -n 2
-### Usage: Example: sh deployProd.sh -w 1.0.0.patch2 -c HG1410d -t testbed-relval -s slc6_amd64_gcc481 -r comp=comp.pre.amaltaro
+### Usage: Example: sh deployProd.sh -w 1.0.0.patch3 -c HG1410d -t testbed-relval -s slc6_amd64_gcc481 -r comp=comp.pre
 ### Usage:
 ### TODO:
 ###  - automatize the way we fetch patches
@@ -204,9 +204,8 @@ set +e
 ### TODO TODO TODO TODO You have to manually add patches here
 echo -e "\n*** Applying deployment patches ***"
 cd $CURRENT
-wget -nv https://github.com/dmwm/WMCore/pull/5422.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # check task field more finely
-wget -nv https://github.com/dmwm/WMCore/pull/5434.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # remove whitespaces from (Ext)Desired_Sites
-wget -nv https://github.com/dmwm/WMCore/pull/5433.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # protects when condor returns 'undefined'
+wget -nv https://github.com/dmwm/WMCore/pull/5466.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # test boolean against boolean
+wget -nv https://github.com/dmwm/WMCore/pull/5478.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fix job splitting for ACDC MCFakeFile
 cd -
 echo "Done!" && echo
 
@@ -296,18 +295,12 @@ echo "Done!" && echo
 ###
 echo "*** Downloading utilitarian scripts ***"
 cd $CURRENT
-wget -q --no-check-certificate https://raw.githubusercontent.com/julianbadillo/WmAgentScripts/c6af3bdac2f9a59af87aac1a3375d5295c711f46/rmOldJobs.sh
-wget -q --no-check-certificate https://raw.github.com/CMSCompOps/WmAgentScripts/master/updateSiteStatus.py
-wget -q --no-check-certificate https://raw.github.com/CMSCompOps/WmAgentScripts/master/thresholdsFromSSB.py
+wget -q --no-check-certificate https://raw.githubusercontent.com/CMSCompOps/WmAgentScripts/master/rmOldJobs.sh
 echo "Done!" && echo
 
 ### Populating cronjob with utilitarian scripts
 echo "*** Creating cronjobs for them ***"
 ( crontab -l 2>/dev/null | grep -Fv ntpdate
-echo "#Update site status"
-echo "*/20 * * * * (source /data/admin/wmagent/env.sh ; source /data/srv/wmagent/current/apps/wmagent/etc/profile.d/init.sh ; python /data/srv/wmagent/current/updateSiteStatus.py ) &> /tmp/updateSiteStatus.log"
-echo "#Update site thresholds"
-echo "*/20 * * * * (source /data/admin/wmagent/env.sh ; source /data/srv/wmagent/current/apps/wmagent/etc/profile.d/init.sh ; python /data/srv/wmagent/current/thresholdsFromSSB.py ) &> /tmp/thresholdsFromSSB.log"
 echo "#remove old jobs script"
 echo "10 */4 * * * source /data/srv/wmagent/current/rmOldJobs.sh &> /tmp/rmJobs.log"
 ) | crontab -
