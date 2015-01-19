@@ -24,7 +24,7 @@
 ### Usage:
 ### Usage: deployProd.sh -w <wma_version> -c <cmsweb_tag> -t <team_name> [-s <scram_arch>] [-r <repository>] [-n <agent_number>]
 ### Usage: Example: sh deployProd.sh -w 0.9.95b.patch2 -c HG1406e -t mc -n 2
-### Usage: Example: sh deployProd.sh -w 1.0.0.patch3 -c HG1410d -t testbed-relval -s slc6_amd64_gcc481 -r comp=comp.pre
+### Usage: Example: sh deployProd.sh -w 1.0.0.patch4 -c HG1410d -t testbed-relval -s slc6_amd64_gcc481 -r comp=comp.pre
 ### Usage:
 ### TODO:
 ###  - automatize the way we fetch patches
@@ -202,10 +202,9 @@ echo -e "\n*** Posting WMAgent: post ***"
 set +e
 
 ### TODO TODO TODO TODO You have to manually add patches here
-echo -e "\n*** Applying deployment patches ***"
+echo -e "\n*** Applying agent patches ***"
 cd $CURRENT
-wget -nv https://github.com/dmwm/WMCore/pull/5466.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # test boolean against boolean
-wget -nv https://github.com/dmwm/WMCore/pull/5478.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fix job splitting for ACDC MCFakeFile
+wget -nv https://github.com/dmwm/WMCore/pull/5429.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fix CleanCouchPoller when a document is missing
 cd -
 echo "Done!" && echo
 
@@ -265,7 +264,7 @@ sed -i "s+OP EMAIL+$OP_EMAIL+" $MANAGE/config.py
 sed -i "/config.ErrorHandler.pollInterval = 240/a config.ErrorHandler.maxProcessSize = 30" $MANAGE/config.py
 sed -i "s+config.PhEDExInjector.diskSites = \[\]+config.PhEDExInjector.diskSites = \['storm-fe-cms.cr.cnaf.infn.it','srm-cms-disk.gridpp.rl.ac.uk','cmssrm-fzk.gridka.de','ccsrm.in2p3.fr','srmcms.pic.es','cmssrmdisk.fnal.gov'\]+" $MANAGE/config.py
 sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 259200, 'Error': 1800+" $MANAGE/config.py
-if [[ "$TEAMNAME" == "reproc_lowprio" || "$TEAMNAME" == "relval_cern" ]]; then
+if [[ "$TEAMNAME" == "reproc_lowprio" || "$TEAMNAME" == relval* ]]; then
   sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Merge' : 4, 'LogCollect' : 2, 'Cleanup' : 2\}+" $MANAGE/config.py
 elif [[ "$TEAMNAME" == *testbed* ]]; then
   GLOBAL_DBS_URL=https://cmsweb-testbed.cern.ch/dbs/int/global/DBSReader
@@ -280,7 +279,7 @@ echo "Done!" && echo
 ### Populating resource-control
 echo "*** Populating resource-control ***"
 cd $MANAGE
-if [[ "$TEAMNAME" == "relval_cern" || "$TEAMNAME" == *testbed* ]]; then
+if [[ "$TEAMNAME" == relval* || "$TEAMNAME" == *testbed* ]]; then
   echo "Adding only T1 and T2 sites to resource-control..."
   ./manage execute-agent wmagent-resource-control --add-T1s --plugin=CondorPlugin --pending-slots=50 --running-slots=50
   ./manage execute-agent wmagent-resource-control --add-T2s --plugin=CondorPlugin --pending-slots=50 --running-slots=50
