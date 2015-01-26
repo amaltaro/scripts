@@ -205,6 +205,7 @@ set +e
 echo -e "\n*** Applying agent patches ***"
 cd $CURRENT
 wget -nv https://github.com/dmwm/WMCore/pull/5429.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fix CleanCouchPoller when a document is missing
+wget -nv https://github.com/dmwm/WMCore/pull/5574.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fix ASW when there is no site IO/CPU slots info
 cd -
 echo "Done!" && echo
 
@@ -262,6 +263,7 @@ sed -i "s+team1,team2,cmsdataops+$TEAMNAME+" $MANAGE/config.py
 sed -i "s+Agent.agentNumber = 0+Agent.agentNumber = $AG_NUM+" $MANAGE/config.py
 sed -i "s+OP EMAIL+$OP_EMAIL+" $MANAGE/config.py
 sed -i "/config.ErrorHandler.pollInterval = 240/a config.ErrorHandler.maxProcessSize = 30" $MANAGE/config.py
+sed -i "s+config.AnalyticsDataCollector.diskUseThreshold = 60+config.AnalyticsDataCollector.diskUseThreshold = 75+" $MANAGE/config.py
 sed -i "s+config.PhEDExInjector.diskSites = \[\]+config.PhEDExInjector.diskSites = \['storm-fe-cms.cr.cnaf.infn.it','srm-cms-disk.gridpp.rl.ac.uk','cmssrm-fzk.gridka.de','ccsrm.in2p3.fr','srmcms.pic.es','cmssrmdisk.fnal.gov'\]+" $MANAGE/config.py
 sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 259200, 'Error': 1800+" $MANAGE/config.py
 if [[ "$TEAMNAME" == "reproc_lowprio" || "$TEAMNAME" == relval* ]]; then
