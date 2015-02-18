@@ -15,6 +15,7 @@ import subprocess
 import time
 import datetime
 import getopt
+import re
 
 def main(argv):
     """
@@ -22,9 +23,11 @@ def main(argv):
     case the time left is lesser than --time.
     Arguments:
     --proxy     : Proxy file location (Default: X509_USER_PROXY)
+    --myproxy   : Check the log term proxy in myproxy (Default: True)
     --mail      : Mail where notification should be sent (Default: USER).
     --send-mail : <True|False> Send mail notification (Default: True).
     --time      : Minimun time left [hours]. It should be an integer. (Default: 48 h).
+    --retrieve  : Retrieve a short proxy from myproxy and add voms extension to it (Default: False)
     --verbose   : Print output messages.
     --help      : Print this menu.
 
@@ -32,12 +35,14 @@ def main(argv):
     --time 72 --send-mail True --mail alanmalta@gmail.com,alan.malta@cern.ch --verbose
     """
 
-    valid = ["proxy=", "mail=", "send-mail=", "time=", "verbose", "help"]
-    
+    valid = ["proxy=", "myproxy=", "mail=", "send-mail=", "time=", "retrieve=", "verbose", "help"]
+    ### // Default values
     proxy = os.getenv('X509_USER_PROXY')
+    myproxy = False
     verbose = False
     mail = os.getenv('USER')
     sendMail = True
+    retrieve = False
     time = 3
     host = os.getenv('HOSTNAME')
 
@@ -49,7 +54,8 @@ def main(argv):
         print str(ex)
         print ''
         sys.exit(1)
-
+    
+    ### // Handle arguments given in the command line
     for opt, arg in opts:
         if opt == "--proxy":
             proxy = arg
@@ -60,11 +66,12 @@ def main(argv):
                 sys.exit(2)
         if opt == "--mail":
             mail = arg
+        if opt == "--myproxy":
+            myproxy = arg
         if opt == "--send-mail":
-            if arg.lower().find("false") > -1:
-                sendMail = False
-            if arg.lower().find("true") > -1:
-                sendMail = True
+            sendMail = arg
+        if opt == "--retrieve":
+            retrieve = arg
         if opt == "--time":
             time = int(arg)
             if time < 1:
@@ -77,65 +84,23 @@ def main(argv):
             print main.__doc__
             sys.exit(0)
 
-    #  //
-    # // Get proxy info
-    #//
+    ### // Retrieves short term proxy info
     command = ["voms-proxy-info", "-all", "-file", str(proxy)]
     p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = p.communicate()
     proxyInfo = [line for line in out.split('\n') if line]
-    if len(proxyInfo):
-        if verbose:
-            print 'Proxy information:'
-            for line in proxyInfo:
-                print line
-        timeLeftStr = []
-        for line in proxyInfo:
-            if line.find('timeleft') > -1:
-                timeLeftStr.append([x.strip().strip(':').strip() \
-                    for x in line.split("timeleft") if  x != ""  ])
-        timeLeftArr = []
-        for item in timeLeftStr:
-            h = float(item[0].split(':')[0])
-            m = float(item[0].split(':')[1])
-            s = float(item[0].split(':')[2])
-            timeLeftArr.append(h + m/60 + s/3600)
-        timeLeftArr.sort()
-        timeLeft = timeLeftArr[0]
-        if time > timeLeft :
-            msg  = "Proxy file in %s is about to expire. " % host
-            msg += "Please renew it.\n"
-            msg += "Hours left: %i\n\n" % int(timeLeft)
-            if int(timeLeft) == 0:
-                msg  = "Proxy file in %s HAS expired." % host
-                msg += "Please renew it.\n"
+    timeLeft = processTimeLeft(host, sendMail, verbose, proxyInfo, time, mail)
 
-            if verbose:
-                print msg
-                print 'Send mail: %s' % sendMail
+    if myproxy:
+        os.environ["X509_USER_CERT"] = proxy
+        os.environ["X509_USER_KEY"] = proxy
+#        print "%s" % os.getenv("X509_USER_CERT")
+        command = ["myproxy-info", "-v", "-l", "amaltaro", "-s", "myproxy.cern.ch", "-k", "amaltaroCERN"]
+        p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        proxyInfo = [line for line in out.split('\n') if line]
+        timeLeft = processTimeLeft(host, sendMail, verbose, proxyInfo, time, mail)
 
-            #  //
-            # // Send Mail
-            #//
-            if sendMail :
-                if verbose:
-                    print 'Sending mail notification'
-                sendMailNotification(mail, msg, proxyInfo)
-    else:
-        msg  = "Valid proxy file in %s not found. " % host
-        msg += "Please create one.\n"
-
-        if verbose:
-            print msg
-            print 'Send mail: %s' % sendMail
-
-        #  //
-        # // Send Mail
-        #//
-        if sendMail:
-            if verbose:
-                print 'Sending mail notification'
-            sendMailNotification(mail, msg)
 
 def sendMailNotification(mail, message, proxyInfo=''):
     host = os.getenv('HOSTNAME')
@@ -154,6 +119,57 @@ def sendMailNotification(mail, message, proxyInfo=''):
     messageFile.close()
     os.system(command)
     os.remove(messageFileName)
+
+def processTimeLeft(host, sendMail, verbose, proxyInfo, time, mail):
+    """
+    Receive the whole proxy info and return its time left.
+    In case no proxy information is provided, it sends an
+    email warning the user.
+    """ 
+    if len(proxyInfo):
+        if verbose:
+            print 'Proxy information:'
+            for line in proxyInfo:
+                print line
+        timeLeft = []
+        for line in proxyInfo:
+            if line.find('timeleft') > -1:
+                dateReg = re.compile('\d{1,3}[:/]\d{2}[:/]\d{2}')
+                timeLeft = dateReg.findall(line)[0]
+                timeLeft = timeLeft.split(':')[0]
+                continue
+    else:
+        msg  = "Valid proxy file in %s not found. " % host
+        msg += "Please create one.\n"
+
+        if verbose:
+            print msg
+            print 'Send mail: %s' % sendMail
+
+        if sendMail:
+            if verbose:
+                print 'Sending mail notification'
+            sendMailNotification(mail, msg)
+        sys.exit(4)   
+
+    ### // build message
+    if int(time) >= int(timeLeft):
+        msg  = "\nProxy file in %s is about to expire. " % host
+        msg += "Please renew it.\n"
+        msg += "Hours left: %i\n" % int(timeLeft)
+        if int(timeLeft) == 0:
+            msg  = "Proxy file in %s HAS expired." % host
+            msg += "Please renew it.\n"
+
+        if verbose:
+            print msg
+            print 'Send mail: %s' % sendMail
+
+        ### // Sends an email
+        if sendMail :
+            if verbose:
+                print 'Sending mail notification'
+            sendMailNotification(mail, msg, proxyInfo)
 
 if __name__ == '__main__':
     main(sys.argv[1:])

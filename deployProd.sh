@@ -36,6 +36,7 @@ ENV_FILE=/data/admin/wmagent/env.sh
 CURRENT=/data/srv/wmagent/current
 MANAGE=/data/srv/wmagent/current/config/wmagent/ 
 OP_EMAIL=cms-comp-ops-workflow-team@cern.ch
+HOSTNAME=`hostname`
 
 # These values may be overwritten by the arguments provided in the command line
 WMA_ARCH=slc5_amd64_gcc461
@@ -143,6 +144,15 @@ if [ "x$MATCH_ORACLE_USER" != "x" ]; then
   FLAVOR=oracle
 fi
 
+if [[ "$HOSTNAME" == *cern.ch ]]; then
+  MYPROXY_CREDNAME="amaltaroCERN"
+elif [[ "$TEAMNAME" == *fnal.gov ]]; then
+  MYPROXY_CREDNAME="amaltaroFNAL"
+else
+  echo "Sorry, I don't know this network domain name"
+  exit 1
+fi
+
 DATA_SIZE=`df -h | grep '/data1' | awk '{print $2}'`
 if [[ -z $DATA_SIZE ]]; then
   DATA1=false
@@ -206,6 +216,12 @@ echo -e "\n*** Applying agent patches ***"
 cd $CURRENT
 wget -nv https://github.com/dmwm/WMCore/pull/5429.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fix CleanCouchPoller when a document is missing
 wget -nv https://github.com/dmwm/WMCore/pull/5574.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fix ASW when there is no site IO/CPU slots info
+wget -nv https://github.com/dmwm/WMCore/pull/5425.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # do not enforce data type for producer nEvents
+wget -nv https://github.com/dmwm/WMCore/pull/5590.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # List and process only valid files in DBS
+wget -nv https://github.com/dmwm/WMCore/pull/5566.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # acdc view change to reduce the size
+wget -nv https://github.com/dmwm/WMCore/pull/5594.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Handle only valid files
+wget -nv https://github.com/dmwm/WMCore/pull/5613.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # add self-healing to corrupted FWJR
+wget -nv https://github.com/dmwm/WMCore/pull/5615.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Dbs parent call fix
 cd -
 echo "Done!" && echo
 
@@ -297,6 +313,8 @@ echo "Done!" && echo
 echo "*** Downloading utilitarian scripts ***"
 cd $CURRENT
 wget -q --no-check-certificate https://raw.githubusercontent.com/CMSCompOps/WmAgentScripts/master/rmOldJobs.sh
+wget -q --no-check-certificate https://raw.githubusercontent.com/amaltaro/scripts/master/checkProxy.py
+mv checkProxy.py /data/admin/wmagent/
 echo "Done!" && echo
 
 ### Populating cronjob with utilitarian scripts
@@ -304,6 +322,8 @@ echo "*** Creating cronjobs for them ***"
 ( crontab -l 2>/dev/null | grep -Fv ntpdate
 echo "#remove old jobs script"
 echo "10 */4 * * * source /data/srv/wmagent/current/rmOldJobs.sh &> /tmp/rmJobs.log"
+echo "55 */12 * * * (export X509_USER_CERT=/data/certs/servicecert.pem; export X509_USER_KEY=/data/certs/servicekey.pem; myproxy-get-delegation -v -l amaltaro -t 168 -s 'myproxy.cern.ch' -k $MYPROXY_CREDNAME -n -o /data/certs/mynewproxy.pem && voms-proxy-init -rfc -voms cms:/cms/Role=production -valid 168:00 -noregen -cert /data/certs/mynewproxy.pem -key /data/certs/mynewproxy.pem -out /data/certs/mynewproxy.pem && mv /data/certs/mynewproxy.pem /data/certs/myproxy.pem)"
+echo "58 */12 * * * python /data/admin/wmagent/checkProxy.py --proxy /data/certs/myproxy.pem --time 96 --send-mail True --mail alanmalta@gmail.com,alan.malta@cern.ch"
 ) | crontab -
 echo "Done!" && echo
 
