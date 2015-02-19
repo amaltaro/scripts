@@ -146,7 +146,7 @@ fi
 
 if [[ "$HOSTNAME" == *cern.ch ]]; then
   MYPROXY_CREDNAME="amaltaroCERN"
-elif [[ "$TEAMNAME" == *fnal.gov ]]; then
+elif [[ "$HOSTNAME" == *fnal.gov ]]; then
   MYPROXY_CREDNAME="amaltaroFNAL"
 else
   echo "Sorry, I don't know this network domain name"
