@@ -222,6 +222,8 @@ wget -nv https://github.com/dmwm/WMCore/pull/5566.patch -O - | patch -d apps/wma
 wget -nv https://github.com/dmwm/WMCore/pull/5594.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Handle only valid files
 wget -nv https://github.com/dmwm/WMCore/pull/5613.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # add self-healing to corrupted FWJR
 wget -nv https://github.com/dmwm/WMCore/pull/5615.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Dbs parent call fix
+wget -nv https://github.com/dmwm/WMCore/pull/5621.patch -O - | patch -d apps/wmagent/ -p 1  # Patch the bin file - Add Multi* tasks to RC database
+wget -nv https://github.com/dmwm/WMCore/pull/5621.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Add Multi* tasks to RC database
 cd -
 echo "Done!" && echo
 
