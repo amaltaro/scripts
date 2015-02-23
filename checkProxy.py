@@ -112,6 +112,12 @@ def sendMailNotification(mail, message, proxyInfo=''):
     for line in proxyInfo:
         messageFile.write("%s\n" % line)
 
+    # Hack to get hostname when running via acrontab
+    if len(host) < 2:
+        p = subprocess.Popen(['hostname'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        host = out
+
     command = "mail -s '%s: Proxy status'" % (host)
     command += " %s" % (mail)
     command += " < %s" % (messageFileName)
