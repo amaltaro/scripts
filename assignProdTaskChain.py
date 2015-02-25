@@ -1,15 +1,4 @@
 #!/usr/bin/env python
-
-"""
-Script used to assign MC and/or ReDigi TaskChain workflows reading each
-task dictionary and using that information to set AcqEra and ProcStr for
-each task in the request.
-
-In order to use it, you need to use a WMAgent machine and source:
-source /afs/cern.ch/cms/LCG/LCG-2/UI/cms_ui_env.sh
-source /data/srv/wmagent/current/apps/wmagent/etc/profile.d/init.sh 
-"""
-
 import urllib2,urllib, httplib, sys, re, os
 import json
 import optparse
@@ -24,13 +13,13 @@ def assignRequest(url,workflow,team,site,era,procstr,procver,activity,lfn):
               "MinMergeSize": 2147483648,
               "MaxMergeSize": 4294967296,
               "MaxMergeEvents": 50000,
-              #"maxRSS": 3772000,
-              "maxRSS": 2294967,
-              "maxVSize": 20294967,
+              #"MaxRSS": 3772000,
+              "MaxRSS": 2294967,
+              "MaxVSize": 20294967,
               "AcquisitionEra": era,
               "ProcessingString": procstr,
               "ProcessingVersion": procver,
-              "dashboard": activity,
+              "Dashboard": activity,
 #              "useSiteListAsLocation" : "true",   ### when we want to use xrootd to readin input files
 #              "CustodialSites": ['T1_US_FNAL'],
 #              "CustodialSubType" : "Move",
@@ -96,70 +85,22 @@ def main():
     parser.add_option('--special', help='Use it for special workflows. You also have to change the code according to the type of WF',dest='special')
     parser.add_option('--test',action="store_true", help='Nothing is injected, only print infomation about workflow and AcqEra',dest='test')
     parser.add_option('--pu',action="store_true", help='Use it to inject PileUp workflows only',dest='pu')
-    parser.add_option('--lsf',action="store_true", help='Use it to assign work to the LSF agent at CERN - vocms174, relvallsf team',dest='lsf')
     (options,args) = parser.parse_args()
 
     if not options.workflow:
         print "The workflow name is mandatory!"
-        print "Usage: python assignRelValWorkflow.py -w <requestName>"
+        print "Usage: python assignProdTaskChain.py -w <requestName>"
         sys.exit(0);
 
     workflow=options.workflow
-    team='mc'
-    site=[
-    "T1_DE_KIT", 
-    "T1_ES_PIC", 
-    "T1_FR_CCIN2P3", 
-    "T1_IT_CNAF", 
-    "T1_RU_JINR", 
-    "T1_UK_RAL", 
-    "T1_US_FNAL", 
-    "T2_AT_Vienna", 
-    "T2_BE_IIHE", 
-    "T2_BE_UCL", 
-    "T2_BR_SPRACE", 
-    "T2_CH_CERN", 
-    "T2_CH_CSCS", 
-    "T2_CN_Beijing", 
-    "T2_DE_DESY", 
-    "T2_DE_RWTH", 
-    "T2_EE_Estonia", 
-    "T2_ES_CIEMAT", 
-    "T2_ES_IFCA", 
-    "T2_FI_HIP", 
-    "T2_FR_CCIN2P3", 
-    "T2_FR_GRIF_IRFU", 
-    "T2_FR_GRIF_LLR", 
-    "T2_FR_IPHC", 
-    "T2_HU_Budapest", 
-    "T2_IT_Bari", 
-    "T2_IT_Legnaro", 
-    "T2_IT_Pisa", 
-    "T2_IT_Rome", 
-    "T2_KR_KNU", 
-    "T2_PL_Warsaw", 
-    "T2_PT_NCG_Lisbon", 
-    "T2_RU_IHEP", 
-    "T2_RU_INR", 
-    "T2_RU_ITEP", 
-    "T2_RU_JINR", 
-    "T2_RU_PNPI", 
-    "T2_RU_SINP", 
-    "T2_TR_METU", 
-    "T2_TW_Taiwan", 
-    "T2_UA_KIPT", 
-    "T2_UK_London_Brunel", 
-    "T2_UK_London_IC", 
-    "T2_UK_SGrid_RALPP", 
-    "T2_US_Caltech", 
-    "T2_US_Florida", 
-    "T2_US_MIT", 
-    "T2_US_Nebraska", 
-    "T2_US_Purdue", 
-    "T2_US_UCSD", 
-    "T2_US_Vanderbilt", 
-    "T2_US_Wisconsin"
-    ]
+    team='production'
+    site=["T1_DE_KIT","T1_ES_PIC","T1_FR_CCIN2P3","T1_IT_CNAF",
+          "T1_RU_JINR","T1_UK_RAL","T1_US_FNAL","T2_CH_CERN",
+          "T2_DE_DESY","T2_DE_RWTH","T2_EE_Estonia","T2_ES_CIEMAT",
+          "T2_FR_GRIF_LLR","T2_FR_IPHC","T2_IT_Bari","T2_IT_Legnaro",
+          "T2_IT_Pisa","T2_IT_Rome","T2_RU_IHEP","T2_UK_London_Brunel",
+          "T2_US_Caltech","T2_US_MIT","T2_US_Nebraska","T2_US_Purdue",
+          "T2_US_UCSD","T2_US_Vanderbilt","T2_US_Wisconsin","T2_US_Florida"]
     procversion=1
     activity='production'
     lfn='/store/mc'
@@ -198,11 +139,6 @@ def main():
         activity=options.activity
     if options.lfn:
         lfn=options.lfn
-
-    # Changing the team name and the site whitelist in case the --lsf parameter was given   
-    if options.lsf:
-        team='relvallsf'
-        site=['T2_CH_CERN']
 
     # If the --test argument was provided, then just print the information gathered so far and abort the assignment
     if options.test:
