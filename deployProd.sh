@@ -24,7 +24,7 @@
 ### Usage:
 ### Usage: deployProd.sh -w <wma_version> -c <cmsweb_tag> -t <team_name> [-s <scram_arch>] [-r <repository>] [-n <agent_number>]
 ### Usage: Example: sh deployProd.sh -w 0.9.95b.patch2 -c HG1406e -t mc -n 2
-### Usage: Example: sh deployProd.sh -w 1.0.0.patch4 -c HG1410d -t testbed-relval -s slc6_amd64_gcc481 -r comp=comp.pre
+### Usage: Example: sh deployProd.sh -w 1.0.0.patch5 -c HG1410d -t testbed-vocms008 -s slc6_amd64_gcc481 -r comp=comp.pre
 ### Usage:
 ### TODO:
 ###  - automatize the way we fetch patches
@@ -214,17 +214,12 @@ set +e
 ### TODO TODO TODO TODO You have to manually add patches here
 echo -e "\n*** Applying agent patches ***"
 cd $CURRENT
-wget -nv https://github.com/dmwm/WMCore/pull/5429.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fix CleanCouchPoller when a document is missing
-wget -nv https://github.com/dmwm/WMCore/pull/5574.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fix ASW when there is no site IO/CPU slots info
 wget -nv https://github.com/dmwm/WMCore/pull/5425.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # do not enforce data type for producer nEvents
-wget -nv https://github.com/dmwm/WMCore/pull/5590.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # List and process only valid files in DBS
 wget -nv https://github.com/dmwm/WMCore/pull/5566.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # acdc view change to reduce the size
+wget -nv https://github.com/dmwm/WMCore/pull/5574.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fix ASW when there is no site IO/CPU slots info
+wget -nv https://github.com/dmwm/WMCore/pull/5590.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # List and process only valid files in DBS
 wget -nv https://github.com/dmwm/WMCore/pull/5594.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Handle only valid files
-wget -nv https://github.com/dmwm/WMCore/pull/5613.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # add self-healing to corrupted FWJR
-wget -nv https://github.com/dmwm/WMCore/pull/5625.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fix typo in previous commit add self-healing to corrupted FWJR
-wget -nv https://github.com/dmwm/WMCore/pull/5615.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Dbs parent call fix
-wget -nv https://github.com/dmwm/WMCore/pull/5621.patch -O - | patch -d apps/wmagent/ -p 1  # Patch the bin file - Add Multi* tasks to RC database
-wget -nv https://github.com/dmwm/WMCore/pull/5621.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Add Multi* tasks to RC database
+wget -nv https://github.com/dmwm/WMCore/pull/5618.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Properly set taskType for ReReco spec
 cd -
 echo "Done!" && echo
 
@@ -281,7 +276,6 @@ sed -i "s+couchProcessThreshold = 25+couchProcessThreshold = 50+" $MANAGE/config
 sed -i "s+team1,team2,cmsdataops+$TEAMNAME+" $MANAGE/config.py
 sed -i "s+Agent.agentNumber = 0+Agent.agentNumber = $AG_NUM+" $MANAGE/config.py
 sed -i "s+OP EMAIL+$OP_EMAIL+" $MANAGE/config.py
-sed -i "/config.ErrorHandler.pollInterval = 240/a config.ErrorHandler.maxProcessSize = 30" $MANAGE/config.py
 sed -i "s+config.AnalyticsDataCollector.diskUseThreshold = 60+config.AnalyticsDataCollector.diskUseThreshold = 75+" $MANAGE/config.py
 sed -i "s+config.PhEDExInjector.diskSites = \[\]+config.PhEDExInjector.diskSites = \['storm-fe-cms.cr.cnaf.infn.it','srm-cms-disk.gridpp.rl.ac.uk','cmssrm-fzk.gridka.de','ccsrm.in2p3.fr','srmcms.pic.es','cmssrmdisk.fnal.gov'\]+" $MANAGE/config.py
 sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 259200, 'Error': 1800+" $MANAGE/config.py
@@ -295,6 +289,10 @@ elif [[ "$TEAMNAME" == *testbed* ]]; then
 else
   sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Harvesting' : 2, 'Merge' : 4, 'LogCollect' : 1, 'Cleanup' : 2\}+" $MANAGE/config.py
 fi
+# Additional config
+sed -i "/config.ErrorHandler.pollInterval = 240/a config.ErrorHandler.maxProcessSize = 30" $MANAGE/config.py
+sed -i "/config.AnalyticsDataCollector.couchProcessThreshold = 50/a config.AnalyticsDataCollector.centralRequestDBURL = 'https://cmsweb.cern.ch/couchdb/reqmgr_workload_cache'" $MANAGE/config.py
+sed -i "/config.AnalyticsDataCollector.couchProcessThreshold = 50/a config.AnalyticsDataCollector.RequestCouchApp = 'ReqMgr'" $MANAGE/config.py
 echo "Done!" && echo
 
 ### Populating resource-control
