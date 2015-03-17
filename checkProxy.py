@@ -16,6 +16,7 @@ import time
 import datetime
 import getopt
 import re
+import tempfile
 
 def main(argv):
     """
@@ -108,9 +109,10 @@ def sendMailNotification(mail, message, proxyInfo='', verbose=False):
     if verbose:
         print "Host:", host, type(host)
         print "Home path:", os.environ['HOME']
-    messageFileName = 'proxymail.txt'
+    #messageFileName = 'proxymail.txt'
 
-    messageFile = open(messageFileName, 'w')
+    messageFile, messageFileName = tempfile.mkstemp()
+    print messageFileName
     messageFile.write(message)
     for line in proxyInfo:
         messageFile.write("%s\n" % line)
