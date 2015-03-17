@@ -106,7 +106,7 @@ def sendMailNotification(mail, message, proxyInfo='', verbose=False):
     host = os.getenv('HOSTNAME')
     os.chdir(os.environ['HOME'])
     if verbose:
-        print "Host:", host
+        print "Host:", host, type(host)
         print "Home path:", os.environ['HOME']
     messageFileName = 'proxymail.txt'
 
