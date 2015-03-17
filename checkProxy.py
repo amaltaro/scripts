@@ -112,7 +112,7 @@ def sendMailNotification(mail, message, proxyInfo='', verbose=False):
     #messageFileName = 'proxymail.txt'
 
     messageFile, messageFileName = tempfile.mkstemp()
-    print messageFileName
+    print messageFile, messageFileName
     messageFile.write(message)
     for line in proxyInfo:
         messageFile.write("%s\n" % line)
