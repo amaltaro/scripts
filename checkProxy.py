@@ -107,16 +107,11 @@ def sendMailNotification(mail, message, proxyInfo='', verbose=False):
     host = os.getenv('HOSTNAME')
     os.chdir(os.environ['HOME'])
     if verbose:
-        print "Host:", host, type(host)
+        print "Host:", host
         print "Home path:", os.environ['HOME']
-    #messageFileName = 'proxymail.txt'
-
-    messageFile, messageFileName = tempfile.mkstemp()
-    print messageFile, messageFileName
-    messageFile.write(message)
+    #append proxy info to message
     for line in proxyInfo:
-        messageFile.write("%s\n" % line)
-
+        message += "%s\n" % line
     # Hack to get hostname when running via acrontab
     if not host or len(host) < 2:
         p = subprocess.Popen(['hostname'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -125,17 +120,15 @@ def sendMailNotification(mail, message, proxyInfo='', verbose=False):
         if verbose:
             print "Hostname empty, getting it from shell"
             print "Host:",host
-            
-    command = "mail -s '%s: Proxy status'" % (host)
+    # echo %msg | mail -s 'HOST proxy status' MAIL_ADD
+    command = " echo \"%s\" | " % (message)            
+    command += "mail -s '%s: Proxy status'" % (host)
     command += " %s" % (mail)
-    command += " < %s" % (messageFileName)
-
-    messageFile.close()
+    
     if verbose:
         print "Running email command"
         print command
     c = os.system(command)
-    os.remove(messageFileName)
     if verbose:
         print "Exit code:",c
 
