@@ -102,9 +102,12 @@ def main(argv):
         timeLeft = processTimeLeft(host, sendMail, verbose, proxyInfo, time, mail)
 
 
-def sendMailNotification(mail, message, proxyInfo=''):
+def sendMailNotification(mail, message, proxyInfo='', verbose=False):
     host = os.getenv('HOSTNAME')
     os.chdir(os.environ['HOME'])
+    if verbose:
+        print "Host:", host
+        print "Home path:", os.environ['HOME']
     messageFileName = 'proxymail.txt'
 
     messageFile = open(messageFileName, 'w')
@@ -113,18 +116,26 @@ def sendMailNotification(mail, message, proxyInfo=''):
         messageFile.write("%s\n" % line)
 
     # Hack to get hostname when running via acrontab
-    if len(host) < 2:
+    if not host or len(host) < 2:
         p = subprocess.Popen(['hostname'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
         host = out
-
+        if verbose:
+            print "Hostname empty, getting it from shell"
+            print "Host:",host
+            
     command = "mail -s '%s: Proxy status'" % (host)
     command += " %s" % (mail)
     command += " < %s" % (messageFileName)
 
     messageFile.close()
-    os.system(command)
+    if verbose:
+        print "Running email command"
+        print command
+    c = os.system(command)
     os.remove(messageFileName)
+    if verbose:
+        print "Exit code:",c
 
 def processTimeLeft(host, sendMail, verbose, proxyInfo, time, mail):
     """
@@ -175,7 +186,7 @@ def processTimeLeft(host, sendMail, verbose, proxyInfo, time, mail):
         if sendMail :
             if verbose:
                 print 'Sending mail notification'
-            sendMailNotification(mail, msg, proxyInfo)
+            sendMailNotification(mail, msg, proxyInfo, verbose)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
