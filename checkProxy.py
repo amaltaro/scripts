@@ -16,6 +16,7 @@ import time
 import datetime
 import getopt
 import re
+import tempfile
 
 def main(argv):
     """
@@ -102,29 +103,34 @@ def main(argv):
         timeLeft = processTimeLeft(host, sendMail, verbose, proxyInfo, time, mail)
 
 
-def sendMailNotification(mail, message, proxyInfo=''):
+def sendMailNotification(mail, message, proxyInfo='', verbose=False):
     host = os.getenv('HOSTNAME')
     os.chdir(os.environ['HOME'])
-    messageFileName = 'proxymail.txt'
-
-    messageFile = open(messageFileName, 'w')
-    messageFile.write(message)
+    if verbose:
+        print "Host:", host
+        print "Home path:", os.environ['HOME']
+    #append proxy info to message
     for line in proxyInfo:
-        messageFile.write("%s\n" % line)
-
+        message += "%s\n" % line
     # Hack to get hostname when running via acrontab
-    if len(host) < 2:
+    if not host or len(host) < 2:
         p = subprocess.Popen(['hostname'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
         host = out
-
-    command = "mail -s '%s: Proxy status'" % (host)
+        if verbose:
+            print "Hostname empty, getting it from shell"
+            print "Host:",host
+    # echo %msg | mail -s 'HOST proxy status' MAIL_ADD
+    command = " echo \"%s\" | " % (message)            
+    command += "mail -s '%s: Proxy status'" % (host)
     command += " %s" % (mail)
-    command += " < %s" % (messageFileName)
-
-    messageFile.close()
-    os.system(command)
-    os.remove(messageFileName)
+    
+    if verbose:
+        print "Running email command"
+        print command
+    c = os.system(command)
+    if verbose:
+        print "Exit code:",c
 
 def processTimeLeft(host, sendMail, verbose, proxyInfo, time, mail):
     """
@@ -175,7 +181,7 @@ def processTimeLeft(host, sendMail, verbose, proxyInfo, time, mail):
         if sendMail :
             if verbose:
                 print 'Sending mail notification'
-            sendMailNotification(mail, msg, proxyInfo)
+            sendMailNotification(mail, msg, proxyInfo, verbose)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
