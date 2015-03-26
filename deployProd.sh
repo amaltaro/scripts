@@ -220,6 +220,11 @@ wget -nv https://github.com/dmwm/WMCore/pull/5574.patch -O - | patch -d apps/wma
 wget -nv https://github.com/dmwm/WMCore/pull/5590.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # List and process only valid files in DBS
 wget -nv https://github.com/dmwm/WMCore/pull/5594.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Handle only valid files
 wget -nv https://github.com/dmwm/WMCore/pull/5618.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Properly set taskType for ReReco spec
+wget -nv https://github.com/dmwm/WMCore/pull/5656.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Limit the number of jobs JobSubmitter can submit per cycle
+wget -nv https://raw.githubusercontent.com/dmwm/WMCore/master/src/python/WMCore/BossAir/Plugins/PyCondorPlugin.py
+mv PyCondorPlugin.py $REPO/slc6_amd64_gcc481/cms/wmagent/$WMA_TAG/lib/python2.6/site-packages/WMCore/BossAir/Plugins/PyCondorPlugin.py
+wget -nv https://github.com/dmwm/WMCore/pull/5704.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Add AccountingGroup to job classAds
+wget -nv https://github.com/dmwm/WMCore/pull/5716.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fixes in case a file have more than one parent
 cd -
 echo "Done!" && echo
 
