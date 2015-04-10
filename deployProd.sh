@@ -24,7 +24,7 @@
 ### Usage:
 ### Usage: deployProd.sh -w <wma_version> -c <cmsweb_tag> -t <team_name> [-s <scram_arch>] [-r <repository>] [-n <agent_number>]
 ### Usage: Example: sh deployProd.sh -w 0.9.95b.patch2 -c HG1406e -t mc -n 2
-### Usage: Example: sh deployProd.sh -w 1.0.0.patch5 -c HG1410d -t testbed-vocms008 -s slc6_amd64_gcc481 -r comp=comp.pre
+### Usage: Example: sh deployProd.sh -w 1.0.5 -c HG1504d -t testbed-cmssrv113 -s slc6_amd64_gcc481 -r comp=comp.pre.amaltaro
 ### Usage:
 ### TODO:
 ###  - automatize the way we fetch patches
@@ -188,12 +188,12 @@ wget -nv -O deployment.zip --no-check-certificate https://github.com/dmwm/deploy
 unzip -q deployment.zip
 cd deployment-$CMSWEB_TAG
 set +e 
-### Applying patch for MariaDB
-if [[ "$WMA_ARCH" == "slc6_amd64_gcc481" && "$FLAVOR" == "mysql" ]]; then
-  cd wmagent
-  wget -nv https://github.com/amaltaro/scripts/commit/04593133d62e4f8f9c724b9fe43ebe3c8dfe34cd.patch -O - | patch -p 1
-  cd - 
-fi
+
+### Patching Couchdb1.6
+echo -e "\n*** Patching couchdb1.6 and changing service certs permissions ***"
+wget -nv https://github.com/dmwm/deployment/pull/162.patch -O - | patch -p 1
+chmod 600 /data/certs/service{cert,key}.pem
+echo "Done!"
 
 echo -e "\n*** Removing the current crontab ***"
 /usr/bin/crontab -r;
@@ -214,17 +214,11 @@ set +e
 ### TODO TODO TODO TODO You have to manually add patches here
 echo -e "\n*** Applying agent patches ***"
 cd $CURRENT
-wget -nv https://github.com/dmwm/WMCore/pull/5425.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # do not enforce data type for producer nEvents
-wget -nv https://github.com/dmwm/WMCore/pull/5566.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # acdc view change to reduce the size
-wget -nv https://github.com/dmwm/WMCore/pull/5574.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fix ASW when there is no site IO/CPU slots info
-wget -nv https://github.com/dmwm/WMCore/pull/5590.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # List and process only valid files in DBS
-wget -nv https://github.com/dmwm/WMCore/pull/5594.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Handle only valid files
-wget -nv https://github.com/dmwm/WMCore/pull/5618.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Properly set taskType for ReReco spec
 wget -nv https://github.com/dmwm/WMCore/pull/5656.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Limit the number of jobs JobSubmitter can submit per cycle
-wget -nv https://raw.githubusercontent.com/dmwm/WMCore/master/src/python/WMCore/BossAir/Plugins/PyCondorPlugin.py
-mv PyCondorPlugin.py sw.*/slc6_amd64_gcc481/cms/wmagent/$WMA_TAG/lib/python2.6/site-packages/WMCore/BossAir/Plugins/PyCondorPlugin.py
-wget -nv https://github.com/dmwm/WMCore/pull/5704.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Add AccountingGroup to job classAds
-wget -nv https://github.com/dmwm/WMCore/pull/5716.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # fixes in case a file have more than one parent
+wget -nv https://github.com/dmwm/WMCore/pull/5763.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Corrects format of PU files in the CMSSW MixingModule
+#wget -nv https://github.com/dmwm/WMCore/pull/5628.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # remove automatic recovery from replication failure
+#wget -nv https://github.com/dmwm/WMCore/pull/5682.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # kill workflow more effiently
+#wget -nv https://github.com/dmwm/WMCore/pull/5682.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # kill workflow more effiently
 cd -
 echo "Done!" && echo
 
@@ -243,7 +237,7 @@ fi
 
 ### Enabling couch watchdog:
 echo "*** Enabling couch watchdog ***"
-sed -i "s+RESPAWN_TIMEOUT=0+RESPAWN_TIMEOUT=5+" $CURRENT/sw*/$WMA_ARCH/external/couchdb/*/bin/couchdb
+sed -i "s+RESPAWN_TIMEOUT=0+RESPAWN_TIMEOUT=5+" $CURRENT/sw*/$WMA_ARCH/external/couchdb*/*/bin/couchdb
 echo "Done!" && echo
 
 echo "*** Starting services ***"
