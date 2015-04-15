@@ -290,7 +290,6 @@ else
 fi
 # Additional config
 sed -i "/config.ErrorHandler.pollInterval = 240/a config.ErrorHandler.maxProcessSize = 30" $MANAGE/config.py
-sed -i "/config.AnalyticsDataCollector.couchProcessThreshold = 50/a config.AnalyticsDataCollector.centralRequestDBURL = 'https://cmsweb.cern.ch/couchdb/reqmgr_workload_cache'" $MANAGE/config.py
 sed -i "/config.AnalyticsDataCollector.couchProcessThreshold = 50/a config.AnalyticsDataCollector.RequestCouchApp = 'ReqMgr'" $MANAGE/config.py
 echo "Done!" && echo
 
