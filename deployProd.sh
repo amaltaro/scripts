@@ -24,7 +24,7 @@
 ### Usage:
 ### Usage: deployProd.sh -w <wma_version> -c <cmsweb_tag> -t <team_name> [-s <scram_arch>] [-r <repository>] [-n <agent_number>]
 ### Usage: Example: sh deployProd.sh -w 0.9.95b.patch2 -c HG1406e -t mc -n 2
-### Usage: Example: sh deployProd.sh -w 1.0.5 -c HG1504d -t testbed-cmssrv113 -s slc6_amd64_gcc481 -r comp=comp.pre.amaltaro
+### Usage: Example: sh deployProd.sh -w 1.0.5.patch1 -c HG1504d -t testbed-cmssrv113 -s slc6_amd64_gcc481 -r comp=comp.pre
 ### Usage:
 ### TODO:
 ###  - automatize the way we fetch patches
@@ -215,9 +215,7 @@ set +e
 echo -e "\n*** Applying agent patches ***"
 cd $CURRENT
 wget -nv https://github.com/dmwm/WMCore/pull/5656.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Limit the number of jobs JobSubmitter can submit per cycle
-wget -nv https://github.com/dmwm/WMCore/pull/5763.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Corrects format of PU files in the CMSSW MixingModule
 #wget -nv https://github.com/dmwm/WMCore/pull/5628.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # remove automatic recovery from replication failure
-#wget -nv https://github.com/dmwm/WMCore/pull/5682.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # kill workflow more effiently
 #wget -nv https://github.com/dmwm/WMCore/pull/5682.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # kill workflow more effiently
 cd -
 echo "Done!" && echo
