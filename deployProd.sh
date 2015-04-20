@@ -153,7 +153,8 @@ else
   exit 1
 fi
 
-DATA_SIZE=`df -h | grep '/data1' | awk '{print $2}'`
+#DATA_SIZE=`df -h | grep '/data1' | awk '{print $2}'`
+DATA_SIZE=`lsblk | grep ' /data1' | awk '{print $4}'`
 if [[ -z $DATA_SIZE ]]; then
   DATA1=false
 else
@@ -190,7 +191,7 @@ cd deployment-$CMSWEB_TAG
 set +e 
 
 ### Patching Couchdb1.6
-echo -e "\n*** Patching couchdb1.6 and changing service certs permissions ***"
+echo -e "\n*** Applying deployment patches (couchdb1.6, etc) ***"
 wget -nv https://github.com/dmwm/deployment/pull/162.patch -O - | patch -p 1
 chmod 600 /data/certs/service{cert,key}.pem
 echo "Done!"
@@ -210,15 +211,6 @@ echo -e "\n*** Deploying WMAgent: sw ***"
 echo -e "\n*** Posting WMAgent: post ***"
 ./Deploy -R wmagent@$WMA_TAG -s post -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent
 set +e
-
-### TODO TODO TODO TODO You have to manually add patches here
-echo -e "\n*** Applying agent patches ***"
-cd $CURRENT
-wget -nv https://github.com/dmwm/WMCore/pull/5656.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Limit the number of jobs JobSubmitter can submit per cycle
-#wget -nv https://github.com/dmwm/WMCore/pull/5628.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # remove automatic recovery from replication failure
-#wget -nv https://github.com/dmwm/WMCore/pull/5682.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # kill workflow more effiently
-cd -
-echo "Done!" && echo
 
 echo "*** Activating the agent ***"
 cd $MANAGE
@@ -247,6 +239,17 @@ echo "*** Initializing the agent ***"
 ./manage init-agent
 echo "Done!" && echo
 sleep 5
+
+### TODO TODO TODO TODO You have to manually add patches here
+echo -e "\n*** Applying agent patches ***"
+cd $CURRENT
+wget -nv https://github.com/dmwm/WMCore/pull/5656.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Limit the number of jobs JobSubmitter can submit per cycle
+wget -nv https://github.com/dmwm/WMCore/pull/5800.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Improve force-complete
+wget -nv https://github.com/dmwm/WMCore/pull/5802.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Shuffle pileup files
+wget -nv https://github.com/dmwm/WMCore/pull/5804.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # change JobPrio to int value
+wget -nv https://github.com/dmwm/WMCore/pull/5814.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fix listFilesInBlockWithParents since parent lfn is a list
+cd -
+echo "Done!" && echo
 
 echo "*** Checking if couchdb migration is needed ***"
 echo -e "\n[query_server_config]\nos_process_limit = 50" >> $CURRENT/config/couchdb/local.ini
