@@ -8,7 +8,7 @@ import urllib, urllib2, httplib
 from urllib2 import HTTPError, URLError
 from urlparse import urljoin
 import json
-import pprint
+from pprint import pprint
 
 # table parameters 
 separ_line = "|"+"-"*54+"|"
@@ -77,9 +77,8 @@ def reqmgr_info(reqName, cert, base_url):
     Queries Request Manager database for the spec file and a few other stuff
     """
     #base_url = "https://reqmgr2-dev.cern.ch"
-    reqmgr_output = {}
     couch_reqmgr = urljoin(base_url+"/couchdb/reqmgr_workload_cache/", reqName)
-    reqmgr_output["reqmgr_input"] = json.loads(get_content(couch_reqmgr, cert))
+    reqmgr_output = json.loads(get_content(couch_reqmgr, cert))
     return reqmgr_output
 
 def phedex_info(datasets, cert, base_url):
@@ -112,7 +111,7 @@ def dbs_info(dataset, cert, base_url):
     full_url += "&dataset_access_type=*&detail=True"
     data = json.loads(get_content(full_url, cert))
     # if dataset is not available in DBS ...
-    dbs_out[dataset]["prep_id"] = data[0]["prep_id"] if data else None
+    dbs_out[dataset]["prep_id"] = data[0]["prep_id"] if data else ''
 
     return dbs_out 
 
@@ -141,15 +140,14 @@ def couch_verbose(couch_input, couch_summary, verbose=False):
     Print CouchDB and ReqMgr information retrieved for the input in
     the spec file and  output samples information
     """
-    print '\n' + '*' * 44 + ' Couch info ' + '*' * 45
-    if 'RequestNumEvents' in couch_input:
-        print 'RequestNumEvents :', couch_input['RequestNumEvents']
-    else:
-        print 'Input Dataset   :', couch_input['InputDataset']
-        print '- Estimated jobs:', couch_input['TotalEstimatedJobs']
-        print '- Input Events  :', couch_input['TotalInputEvents']
-        print '- Input Lumis   :', couch_input['TotalInputLumis']
-        print '- Input Files   :', couch_input['TotalInputFiles']
+    print '\nComments :', couch_input['Comments']
+    print '*' * 44 + ' Couch info ' + '*' * 45
+    print '- Input Dataset     :', couch_input['InputDataset']
+    print ' - RequestNumEvents :', couch_input['RequestNumEvents']
+    print ' - Input Events     :', couch_input['TotalInputEvents']
+    print ' - Estimated jobs   :', couch_input['TotalEstimatedJobs']
+    print ' - Input Lumis      :', couch_input['TotalInputLumis']
+    print ' - Input Files      :', couch_input['TotalInputFiles']
     print '-'*101
     if not couch_summary:
         print "Couch output workload summary is empty!"
@@ -255,24 +253,25 @@ def main(argv=None):
     # TODO: this information may not be available for all type of requests
     print reqName
     reqmgr_out = reqmgr_info(reqName, cert, reqmgr_url)
+    if reqmgr_out['RequestStatus'] not in ['completed','closed-out','announced']:
+        print "We cannot validate wfs in this state: %s" % reqmgr_out['RequestStatus'] 
+        sys.exit(1)
     try:
-        couch_input = {'RequestNumEvents' : reqmgr_out['RequestNumEvents']}
-#        print "DEBUG: Got it in try 1"
+        couch_input = {'TotalEstimatedJobs' : reqmgr_out['TotalEstimatedJobs'],
+                       'TotalInputEvents' : reqmgr_out['TotalInputEvents'],
+                       'TotalInputLumis' : reqmgr_out['TotalInputLumis'],
+                       'TotalInputFiles' : reqmgr_out['TotalInputFiles']}
     except KeyError:
-        pass
-    try:
-        couch_input = {'RequestNumEvents' : reqmgr_out['Task1']['RequestNumEvents']}
-#        print "DEBUG: Got it in try 2 (inside Task1)"
-    except KeyError:
-        pass
-    try:
-        couch_input = {'TotalEstimatedJobs' : reqmgr_out['reqmgr_input']['TotalEstimatedJobs'],
-                       'TotalInputEvents' : reqmgr_out['reqmgr_input']['TotalInputEvents'],
-                       'TotalInputLumis' : reqmgr_out['reqmgr_input']['TotalInputLumis'],
-                       'TotalInputFiles' : reqmgr_out['reqmgr_input']['TotalInputFiles'],
-                       'InputDataset' : ''}
-    except KeyError:
-        raise AttributeError("Reqmgr_out does not have such attribute")
+        raise AttributeError("Total* parameter not found in reqmgr_workload_cache database")
+
+    couch_input['Comments'] = reqmgr_out['Comments'] if 'Comments' in reqmgr_out else ''
+    couch_input['InputDataset'] = reqmgr_out['InputDataset'] if 'InputDataset' in reqmgr_out else ''
+    if 'RequestNumEvents' in reqmgr_out:
+        couch_input['RequestNumEvents'] = reqmgr_out['RequestNumEvents']
+    elif 'Task1' in reqmgr_out and 'RequestNumEvents' in reqmgr_out['Task1']:
+        couch_input['RequestNumEvents'] = reqmgr_out['Task1']['RequestNumEvents']
+    else:
+        couch_input['RequestNumEvents'] = ''
 
     ### Retrieve CouchDB information
     # Get workload summary,  output samples, num of files and events
@@ -294,13 +293,13 @@ def main(argv=None):
                                        'dset_files' : couch_out["workflow_summary"]["output"][dset]["nFiles"],
                                        'dset_size' : couch_out["workflow_summary"]["output"][dset]["size"]}
             else:
-                couch_num_files[dset], couch_num_events[dset], couch_dset_size[dset] = None, None, None
-                couch_summary[dset] = {'events': None, 'dset_files': None, 'dset_size': None}
+                couch_num_files[dset], couch_num_events[dset], couch_dset_size[dset] = '', '', ''
+                couch_summary[dset] = {'events': '', 'dset_files': '', 'dset_size': ''}
 
     # Complement the couch_input dict with the inputDset, if exists
-    if 'inputdatasets' in couch_out['workflow_summary'] and \
-      'InputDataset' in couch_input and len(couch_out['workflow_summary']['inputdatasets']) > 0:
-        couch_input['InputDataset'] = couch_out['workflow_summary']['inputdatasets'][0] 
+#    if 'inputdatasets' in couch_out['workflow_summary'] and \
+#      'InputDataset' in couch_input and len(couch_out['workflow_summary']['inputdatasets']) > 0:
+#        couch_input['InputDataset'] = couch_out['workflow_summary']['inputdatasets'][0] 
 
     ### Retrieve PhEDEx information
     # Get general phedex info, number of files and size of dataset
@@ -346,8 +345,8 @@ def main(argv=None):
             phedex_num_files[dset] = phedex_summary[dset][0]['dset_files']
             phedex_dset_size[dset] = phedex_summary[dset][0]['dset_size']
         else:
-            phedex_num_files[dset] = None
-            phedex_dset_size[dset] = None
+            phedex_num_files[dset] = ''
+            phedex_dset_size[dset] = ''
 
     ### Retrieve DBS information
     # Starts with a dset list, gets dset_size, dset_events, num_files
