@@ -154,7 +154,7 @@ else
 fi
 
 #DATA_SIZE=`df -h | grep '/data1' | awk '{print $2}'`
-DATA_SIZE=`lsblk | grep ' /data1' | awk '{print $4}'`
+DATA_SIZE=`lsblk -o SIZE,MOUNTPOINT | grep ' /data1' | awk '{print $1}'`
 if [[ -z $DATA_SIZE ]]; then
   DATA1=false
 else
@@ -212,7 +212,7 @@ echo -e "\n*** Posting WMAgent: post ***"
 ./Deploy -R wmagent@$WMA_TAG -s post -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent
 set +e
 
-echo "*** Activating the agent ***"
+echo "\n*** Activating the agent ***"
 cd $MANAGE
 ./manage activate-agent
 echo "Done!" && echo
@@ -245,9 +245,10 @@ echo -e "\n*** Applying agent patches ***"
 cd $CURRENT
 wget -nv https://github.com/dmwm/WMCore/pull/5656.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Limit the number of jobs JobSubmitter can submit per cycle
 wget -nv https://github.com/dmwm/WMCore/pull/5800.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Improve force-complete
-wget -nv https://github.com/dmwm/WMCore/pull/5802.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Shuffle pileup files
 wget -nv https://github.com/dmwm/WMCore/pull/5804.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # change JobPrio to int value
 wget -nv https://github.com/dmwm/WMCore/pull/5814.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Fix listFilesInBlockWithParents since parent lfn is a list
+wget -nv https://github.com/dmwm/WMCore/pull/5815.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Shuffle pileup files
+wget -nv https://github.com/dmwm/WMCore/pull/5818.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Do not crash JobUpdater in case of couch issues
 cd -
 echo "Done!" && echo
 
