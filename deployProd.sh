@@ -212,7 +212,7 @@ echo -e "\n*** Posting WMAgent: post ***"
 ./Deploy -R wmagent@$WMA_TAG -s post -A $WMA_ARCH -r $REPO -t v$WMA_TAG $DEPLOY_DIR wmagent
 set +e
 
-echo "\n*** Activating the agent ***"
+echo -e "\n*** Activating the agent ***"
 cd $MANAGE
 ./manage activate-agent
 echo "Done!" && echo
@@ -292,7 +292,6 @@ else
 fi
 # Additional config
 sed -i "/config.ErrorHandler.pollInterval = 240/a config.ErrorHandler.maxProcessSize = 30" $MANAGE/config.py
-sed -i "/config.AnalyticsDataCollector.couchProcessThreshold = 50/a config.AnalyticsDataCollector.RequestCouchApp = 'ReqMgr'" $MANAGE/config.py
 echo "Done!" && echo
 
 ### Populating resource-control
