@@ -288,10 +288,10 @@ fi
 # TODO remove this hack once AlertProcessor gets fixed
 sed -i "s+config.AlertProcessor.critical.sinks.email.fromAddr = 'noreply@cern.ch'+#config.AlertProcessor.critical.sinks.email.fromAddr = 'noreply@cern.ch'+" $MANAGE/config.py
 sed -i "s+config.AlertProcessor.critical.sinks.email.smtpServer = 'cernmx.cern.ch'+#config.AlertProcessor.critical.sinks.email.smtpServer = 'cernmx.cern.ch'+" $MANAGE/config.py
-sed -i "s+config.AlertProcessor.critical.sinks.email.toAddr = ['wmagentalerts@gmail.com']+#config.AlertProcessor.critical.sinks.email.toAddr = ['wmagentalerts@gmail.com']+" $MANAGE/config.py
+sed -i "s+config.AlertProcessor.critical.sinks.email.toAddr = \['wmagentalerts@gmail.com'\]+#config.AlertProcessor.critical.sinks.email.toAddr = \['wmagentalerts@gmail.com'\]+" $MANAGE/config.py
 sed -i "s+config.AlertProcessor.soft.sinks.email.fromAddr = 'noreply@cern.ch'+#config.AlertProcessor.soft.sinks.email.fromAddr = 'noreply@cern.ch'+" $MANAGE/config.py
 sed -i "s+config.AlertProcessor.soft.sinks.email.smtpServer = 'cernmx.cern.ch'+#config.AlertProcessor.soft.sinks.email.smtpServer = 'cernmx.cern.ch'+" $MANAGE/config.py
-sed -i "s+config.AlertProcessor.soft.sinks.email.toAddr = ['wmagentalerts@gmail.com']+#config.AlertProcessor.soft.sinks.email.toAddr = ['wmagentalerts@gmail.com']+" $MANAGE/config.py
+sed -i "s+config.AlertProcessor.soft.sinks.email.toAddr = \['wmagentalerts@gmail.com'\]+#config.AlertProcessor.soft.sinks.email.toAddr = \['wmagentalerts@gmail.com'\]+" $MANAGE/config.py
 
 # Additional config
 sed -i "/config.ErrorHandler.pollInterval = 240/a config.ErrorHandler.maxProcessSize = 30" $MANAGE/config.py
