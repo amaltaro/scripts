@@ -285,6 +285,14 @@ elif [[ "$TEAMNAME" == *testbed* ]]; then
 else
   sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Harvesting' : 2, 'Merge' : 4, 'LogCollect' : 1, 'Cleanup' : 2\}+" $MANAGE/config.py
 fi
+# TODO remove this hack once AlertProcessor gets fixed
+sed -i "s+config.AlertProcessor.critical.sinks.email.fromAddr = 'noreply@cern.ch'+#config.AlertProcessor.critical.sinks.email.fromAddr = 'noreply@cern.ch'+" $MANAGE/config.py
+sed -i "s+config.AlertProcessor.critical.sinks.email.smtpServer = 'cernmx.cern.ch'+#config.AlertProcessor.critical.sinks.email.smtpServer = 'cernmx.cern.ch'+" $MANAGE/config.py
+sed -i "s+config.AlertProcessor.critical.sinks.email.toAddr = ['wmagentalerts@gmail.com']+#config.AlertProcessor.critical.sinks.email.toAddr = ['wmagentalerts@gmail.com']+" $MANAGE/config.py
+sed -i "s+config.AlertProcessor.soft.sinks.email.fromAddr = 'noreply@cern.ch'+#config.AlertProcessor.soft.sinks.email.fromAddr = 'noreply@cern.ch'+" $MANAGE/config.py
+sed -i "s+config.AlertProcessor.soft.sinks.email.smtpServer = 'cernmx.cern.ch'+#config.AlertProcessor.soft.sinks.email.smtpServer = 'cernmx.cern.ch'+" $MANAGE/config.py
+sed -i "s+config.AlertProcessor.soft.sinks.email.toAddr = ['wmagentalerts@gmail.com']+#config.AlertProcessor.soft.sinks.email.toAddr = ['wmagentalerts@gmail.com']+" $MANAGE/config.py
+
 # Additional config
 sed -i "/config.ErrorHandler.pollInterval = 240/a config.ErrorHandler.maxProcessSize = 30" $MANAGE/config.py
 echo "Done!" && echo
