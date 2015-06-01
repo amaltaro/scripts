@@ -20,14 +20,14 @@
 ### Usage:               -t <team_name>    Team name in which the agent should be connected to
 ### Usage:               -s <scram_arch>   The RPM architecture (defaults to slc5_amd64_gcc461)
 ### Usage:               -r <repository>   Comp repository to look for the RPMs (defaults to comp=comp)
+### Usage:               -p <patches>      List of PR numbers in double quotes and space separated (e.g., "5906 5934 5922")
 ### Usage:               -n <agent_number> Agent number to be set when more than 1 agent connected to the same team (defaults to 0)
 ### Usage:
 ### Usage: deployProd.sh -w <wma_version> -c <cmsweb_tag> -t <team_name> [-s <scram_arch>] [-r <repository>] [-n <agent_number>]
-### Usage: Example: sh deployProd.sh -w 0.9.95b.patch2 -c HG1406e -t mc -n 2
+### Usage: Example: sh deployProd.sh -w 1.0.7.pre10 -c HG1506c -t production -p "5757 5932" -n 2
 ### Usage: Example: sh deployProd.sh -w 1.0.5.patch2 -c HG1504d -t testbed-cmssrv113 -s slc6_amd64_gcc481 -r comp=comp.pre
 ### Usage:
 ### TODO:
-###  - automatize the way we fetch patches
 ###  - automatize the clean up of the old agent
  
 BASE_DIR=/data/srv 
@@ -128,6 +128,7 @@ for arg; do
     -t) TEAMNAME=$2; shift; shift ;;
     -s) WMA_ARCH=$2; shift; shift ;;
     -r) REPO=$2; shift; shift ;;
+    -p) PATCHES=$2; shift; shift ;;
     -n) AG_NUM=$2; shift; shift ;;
     -*) usage ;;
   esac
@@ -240,11 +241,15 @@ echo "*** Initializing the agent ***"
 echo "Done!" && echo
 sleep 5
 
-### TODO TODO TODO TODO You have to manually add patches here
+# By default, it will only work for official WMCore patches in the general path
 echo -e "\n*** Applying agent patches ***"
-cd $CURRENT
-#wget -nv https://github.com/dmwm/WMCore/pull/5818.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3  # Do not crash JobUpdater in case of couch issues
+if [ "x$PATCHES" != "x" ]; then
+  cd $CURRENT
+  for pr in $PATCHES; do
+    wget -nv https://github.com/dmwm/WMCore/pull/$pr.patch -O - | patch -d apps/wmagent/lib/python2.6/site-packages/ -p 3
+  done
 cd -
+fi
 echo "Done!" && echo
 
 echo "*** Checking if couchdb migration is needed ***"
@@ -266,7 +271,7 @@ echo "Done!" && echo
 
 ###
 # tweak configuration
-###
+### TODO: remove part of these tweaks when #5949 gets merged
 echo "*** Tweaking configuration ***"
 sed -i "s+couchProcessThreshold = 25+couchProcessThreshold = 50+" $MANAGE/config.py
 sed -i "s+team1,team2,cmsdataops+$TEAMNAME+" $MANAGE/config.py
@@ -275,8 +280,9 @@ sed -i "s+OP EMAIL+$OP_EMAIL+" $MANAGE/config.py
 sed -i "s+config.AnalyticsDataCollector.diskUseThreshold = 60+config.AnalyticsDataCollector.diskUseThreshold = 75+" $MANAGE/config.py
 sed -i "s+config.PhEDExInjector.diskSites = \[\]+config.PhEDExInjector.diskSites = \['storm-fe-cms.cr.cnaf.infn.it','srm-cms-disk.gridpp.rl.ac.uk','cmssrm-fzk.gridka.de','ccsrm.in2p3.fr','srmcms.pic.es','cmssrmdisk.fnal.gov'\]+" $MANAGE/config.py
 sed -i "s+'Running': 169200, 'Pending': 360000, 'Error': 1800+'Running': 169200, 'Pending': 259200, 'Error': 1800+" $MANAGE/config.py
-if [[ "$TEAMNAME" == "reproc_lowprio" || "$TEAMNAME" == relval* ]]; then
+if [[ "$TEAMNAME" == relval* ]]; then
   sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = \{'default' : 3, 'Merge' : 4, 'LogCollect' : 2, 'Cleanup' : 2\}+" $MANAGE/config.py
+  sed -i "s+config.TaskArchiver.archiveDelayHours = 24+config.TaskArchiver.archiveDelayHours = 336+" $MANAGE/config.py
 elif [[ "$TEAMNAME" == *testbed* ]]; then
   GLOBAL_DBS_URL=https://cmsweb-testbed.cern.ch/dbs/int/global/DBSReader
   sed -i "s+ErrorHandler.maxRetries = 3+ErrorHandler.maxRetries = 0+" $MANAGE/config.py
@@ -315,9 +321,10 @@ echo "Done!" && echo
 ###
 echo "*** Downloading utilitarian scripts ***"
 cd $CURRENT
+rm -f rmOldJobs.sh checkProxy.py
 wget -q --no-check-certificate https://raw.githubusercontent.com/CMSCompOps/WmAgentScripts/master/rmOldJobs.sh
 wget -q --no-check-certificate https://raw.githubusercontent.com/amaltaro/scripts/master/checkProxy.py
-mv checkProxy.py /data/admin/wmagent/
+mv -f checkProxy.py /data/admin/wmagent/
 echo "Done!" && echo
 
 ### Populating cronjob with utilitarian scripts
