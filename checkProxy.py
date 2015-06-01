@@ -86,7 +86,8 @@ def main(argv):
             sys.exit(0)
 
     ### // Retrieves short term proxy info
-    command = ["voms-proxy-info", "-all", "-file", str(proxy)]
+    #command = ["voms-proxy-info", "-all", "-file", str(proxy)]
+    command = ["voms-proxy-info", "-file", str(proxy)]
     p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = p.communicate()
     proxyInfo = [line for line in out.split('\n') if line]
