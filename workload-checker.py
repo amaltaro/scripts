@@ -57,7 +57,6 @@ def reqmgr_outputs(reqName, cert, base_url):
     """
     Queries reqmgr db for the output datasets
     """
-    #base_url = "https://reqmgr2-dev.cern.ch"
     reqmgr_url = base_url + "/reqmgr/reqMgr/outputDatasetsByRequestName?requestName=" + reqName
     output_dsets = json.loads(get_content(reqmgr_url, cert))
     return output_dsets
@@ -66,7 +65,6 @@ def couch_info(reqName, cert, base_url):
     """
     Queries couchdb wmstats database for the workloadSummary
     """
-    #base_url = "https://reqmgr2-dev.cern.ch"
     couch_output = {}
     couch_workl = urljoin(base_url+"/couchdb/workloadsummary/", reqName)
     couch_output["workflow_summary"] = json.loads(get_content(couch_workl, cert))
@@ -76,7 +74,6 @@ def reqmgr_info(reqName, cert, base_url):
     """
     Queries Request Manager database for the spec file and a few other stuff
     """
-    #base_url = "https://reqmgr2-dev.cern.ch"
     couch_reqmgr = urljoin(base_url+"/couchdb/reqmgr_workload_cache/", reqName)
     reqmgr_output = json.loads(get_content(couch_reqmgr, cert))
     return reqmgr_output
@@ -85,7 +82,7 @@ def phedex_info(datasets, cert, base_url):
     """
     Queries blockreplicas PhEDEx API to retrieve general information needed
     """
-    phedex_summary= {}
+    phedex_summary = {}
     phedex_query_params = urllib.urlencode([('dataset', i) for i in datasets])
     phedex_url = urljoin(base_url+"/phedex/datasvc/json/prod/", "blockreplicas")
     phedex_summary["blockreplicas"] = json.loads(get_content(phedex_url, cert, phedex_query_params))
@@ -140,7 +137,6 @@ def couch_verbose(couch_input, couch_summary, verbose=False):
     Print CouchDB and ReqMgr information retrieved for the input in
     the spec file and  output samples information
     """
-    print '\nComments :', couch_input['Comments']
     print '*' * 44 + ' Couch info ' + '*' * 45
     print '- Input Dataset     :', couch_input['InputDataset']
     print ' - RequestNumEvents :', couch_input['RequestNumEvents']
@@ -175,6 +171,7 @@ def phedex_verbose(phedex_out, phedex_summary, verbose=False):
             print ' - Block size:', item["bytes"]
             print ' - Is Open   :', item["is_open"]
             print ' - Site      :', item["node"]
+            print ' - SE        :', item["se"]
             print ' - Custodial :', item["custodial"]
             print ' - Complete  :', item["complete"]
             print ' - Subscribed:', item["subscribed"]
@@ -225,29 +222,17 @@ def main(argv=None):
     parser.add_option('-v', '--verbose', action="store_true", help='Set verbose to print nice info for all 3 services.',dest='verbose')
     parser.add_option('-c', '--cms', help='Override DBS3 URL. Example: cmsweb.cern.ch',dest='cms')
     parser.add_option('-m', '--reqmgr', help='Request Manager URL. Example: couch-dev1.cern.ch',dest='reqmgr')
+    parser.add_option('-2', '--reqmgr2', action="store_true", help='Set this variable for reqmgr2 requests.',dest='verbose')
     (options, args) = parser.parse_args()
     if not (options.request and options.proxy):
         parser.error("Please supply request name and certificate location")
         sys.exit(1)
     reqName = options.request
     cert = options.proxy
-#    verbose = False
-#    if options.verbose:
-#        verbose = True
 
     verbose = True if options.verbose else False
-
     cmsweb_url = "https://" + options.cms if options.cms else "https://cmsweb-testbed.cern.ch" 
-#    if options.cms:
-#        cmsweb_url = "https://" + options.cms
-#    else:
-#        cmsweb_url = "https://cmsweb-testbed.cern.ch"
-
     reqmgr_url = "https://" + options.reqmgr if options.reqmgr else "https://cmsweb-testbed.cern.ch" 
-#    if options.reqmgr:
-#        reqmgr_url = "https://" + options.reqmgr
-#    else:
-#        reqmgr_url = "https://cmsweb-testbed.cern.ch"
 
     ### Retrieve ReqMgr information
     # TODO: this information may not be available for all type of requests
@@ -255,7 +240,10 @@ def main(argv=None):
     reqmgr_out = reqmgr_info(reqName, cert, reqmgr_url)
     if reqmgr_out['RequestStatus'] not in ['completed','closed-out','announced']:
         print "We cannot validate wfs in this state: %s" % reqmgr_out['RequestStatus'] 
-        sys.exit(1)
+        sys.exit(0)
+    if reqmgr_out['RequestType'] == 'DQMHarvest':
+        print "We cannot validate DQMHarvest workflows, there is no output datasetss" 
+        sys.exit(0)
     try:
         couch_input = {'TotalEstimatedJobs' : reqmgr_out['TotalEstimatedJobs'],
                        'TotalInputEvents' : reqmgr_out['TotalInputEvents'],
@@ -265,7 +253,13 @@ def main(argv=None):
         raise AttributeError("Total* parameter not found in reqmgr_workload_cache database")
 
     couch_input['Comments'] = reqmgr_out['Comments'] if 'Comments' in reqmgr_out else ''
+    print " - Comments: %s" % couch_input['Comments']
     couch_input['InputDataset'] = reqmgr_out['InputDataset'] if 'InputDataset' in reqmgr_out else ''
+    if 'Task1' in reqmgr_out and 'InputDataset' in reqmgr_out['Task1']:
+        couch_input['InputDataset'] = reqmgr_out['Task1']['InputDataset']
+    elif 'Step1' in reqmgr_out and 'InputDataset' in reqmgr_out['Step1']:
+        couch_input['InputDataset'] = reqmgr_out['Step1']['InputDataset']
+
     if 'RequestNumEvents' in reqmgr_out:
         couch_input['RequestNumEvents'] = reqmgr_out['RequestNumEvents']
     elif 'Task1' in reqmgr_out and 'RequestNumEvents' in reqmgr_out['Task1']:
@@ -296,16 +290,11 @@ def main(argv=None):
                 couch_num_files[dset], couch_num_events[dset], couch_dset_size[dset] = '', '', ''
                 couch_summary[dset] = {'events': '', 'dset_files': '', 'dset_size': ''}
 
-    # Complement the couch_input dict with the inputDset, if exists
-#    if 'inputdatasets' in couch_out['workflow_summary'] and \
-#      'InputDataset' in couch_input and len(couch_out['workflow_summary']['inputdatasets']) > 0:
-#        couch_input['InputDataset'] = couch_out['workflow_summary']['inputdatasets'][0] 
-
     ### Retrieve PhEDEx information
     # Get general phedex info, number of files and size of dataset
     phedex_out = phedex_info(couch_datasets, cert, cmsweb_url)
     phedex_datasets = [i['name'].split('#')[0] for i in phedex_out["blockreplicas"]["phedex"]["block"]]
-    phedex_datasets = couch_datasets
+    #phedex_datasets = couch_datasets
     phedex_datasets = list(set(phedex_datasets))
     phedex_num_files = {}
     phedex_dset_size = {}
@@ -313,6 +302,7 @@ def main(argv=None):
     phedex_summary = {}
     for item in phedex_out["blockreplicas"]["phedex"]["block"]:
         dset = item['name'].split('#')[0]
+        #phedex_block_se[item['name']] = item['replica'][0]['node']
         phedex_block_se[item['name']] = item['replica'][0]['se']
         if dset not in phedex_summary:
             phedex_summary[dset] = [{'block' : item['name'],
@@ -437,7 +427,8 @@ def main(argv=None):
     comp_res = list_cmp(phedex_block_se, dbs_block_se)
     print '| Are blocks in the same SE? | %-7s | %-6s | %-4s |' % ('--', comp_res, comp_res)
     print split_line
-
+    #print phedex_block_se
+    #print dbs_block_se
     ### Starts VERBOSE mode for the information retrieved so far
     if verbose:
         couch_verbose(couch_input, couch_summary, False)
