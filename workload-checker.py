@@ -1,20 +1,28 @@
-# /bin/python
-# -*- coding: utf-8 -*-
-# Author : Justas Balcas justas.balcas@cern.ch
-# Date : 2014-01-29
-import os, os.path, sys
+#!/usr/bin/env python
+import os
+import sys
+import urllib
+import urllib2
+import httplib
+import json
 from optparse import OptionParser
-import urllib, urllib2, httplib
 from urllib2 import HTTPError, URLError
 from urlparse import urljoin
-import json
 from pprint import pprint
 
 # table parameters 
-separ_line = "|"+"-"*54+"|"
-split_line = "|"+"*"*54+"|"
+separ_line = "|" + "-" * 54 + "|"
+split_line = "|" + "*" * 54 + "|"
+
+# ID for the User-Agent
+CLIENT_ID = 'workload-checker/1.1::python/%s.%s' % sys.version_info[:2]
+
 
 class HTTPSClientAuthHandler(urllib2.HTTPSHandler):
+    """
+    Basic HTTPS class
+    """
+
     def __init__(self, key, cert):
         urllib2.HTTPSHandler.__init__(self)
         self.key = key
@@ -26,23 +34,34 @@ class HTTPSClientAuthHandler(urllib2.HTTPSHandler):
         # will behave as a constructor
         return self.do_open(self.getConnection, req)
 
-    def getConnection(self, host, timeout=300):
+    def getConnection(self, host, timeout=290):
         return httplib.HTTPSConnection(host, key_file=self.key, cert_file=self.cert)
+
+
+def x509():
+    "Helper function to get x509 from env or tmp file"
+    proxy = os.environ.get('X509_USER_PROXY', '')
+    if not proxy:
+        proxy = '/tmp/x509up_u%s' % pwd.getpwuid(os.getuid()).pw_uid
+        if not os.path.isfile(proxy):
+            return ''
+    return proxy
+
 
 def ifDict(val_in):
     if isinstance(val_in, dict):
         return True
     return False
 
-def get_content(url, cert, params=None):
-    opener = urllib2.build_opener(HTTPSClientAuthHandler(cert, cert) )
+
+def get_content(url, params=None):
+    cert = x509()
+    client = '%s (%s)' % (CLIENT_ID, os.environ.get('USER', ''))
+    opener = urllib2.build_opener(HTTPSClientAuthHandler(cert, cert))
+    opener.addheaders = [("User-Agent", client)]
     try:
-        if params:
-            response = opener.open(url, params)
-            output = response.read()
-        else :
-            response = opener.open(url)
-            output = response.read()
+        response = opener.open(url, params)
+        output = response.read()
     except HTTPError as e:
         print 'The server couldn\'t fulfill the request at %s' % url
         print 'Error code: ', e.code
@@ -51,44 +70,49 @@ def get_content(url, cert, params=None):
         print 'Failed to reach server at %s' % url
         print 'Reason: ', e.reason
         sys.exit(1)
-    return output   
+    return output
 
-def reqmgr_outputs(reqName, cert, base_url):
+
+def reqmgr_outputs(reqName, base_url):
     """
     Queries reqmgr db for the output datasets
     """
     reqmgr_url = base_url + "/reqmgr/reqMgr/outputDatasetsByRequestName?requestName=" + reqName
-    output_dsets = json.loads(get_content(reqmgr_url, cert))
+    output_dsets = json.loads(get_content(reqmgr_url))
     return output_dsets
 
-def couch_info(reqName, cert, base_url):
+
+def couch_info(reqName, base_url):
     """
     Queries couchdb wmstats database for the workloadSummary
     """
     couch_output = {}
-    couch_workl = urljoin(base_url+"/couchdb/workloadsummary/", reqName)
-    couch_output["workflow_summary"] = json.loads(get_content(couch_workl, cert))
+    couch_workl = urljoin(base_url + "/couchdb/workloadsummary/", reqName)
+    couch_output["workflow_summary"] = json.loads(get_content(couch_workl))
     return couch_output
 
-def reqmgr_info(reqName, cert, base_url):
+
+def reqmgr_info(reqName, base_url):
     """
     Queries Request Manager database for the spec file and a few other stuff
     """
-    couch_reqmgr = urljoin(base_url+"/couchdb/reqmgr_workload_cache/", reqName)
-    reqmgr_output = json.loads(get_content(couch_reqmgr, cert))
+    couch_reqmgr = urljoin(base_url + "/couchdb/reqmgr_workload_cache/", reqName)
+    reqmgr_output = json.loads(get_content(couch_reqmgr))
     return reqmgr_output
 
-def phedex_info(datasets, cert, base_url):
+
+def phedex_info(datasets, base_url):
     """
     Queries blockreplicas PhEDEx API to retrieve general information needed
     """
     phedex_summary = {}
     phedex_query_params = urllib.urlencode([('dataset', i) for i in datasets])
-    phedex_url = urljoin(base_url+"/phedex/datasvc/json/prod/", "blockreplicas")
-    phedex_summary["blockreplicas"] = json.loads(get_content(phedex_url, cert, phedex_query_params))
-    return phedex_summary 
+    phedex_url = urljoin(base_url + "/phedex/datasvc/json/prod/", "blockreplicas")
+    phedex_summary["blockreplicas"] = json.loads(get_content(phedex_url, phedex_query_params))
+    return phedex_summary
 
-def dbs_info(dataset, cert, base_url):
+
+def dbs_info(dataset, base_url):
     """
     Queries 3 DBS APIs to get all general information needed
     """
@@ -97,26 +121,27 @@ def dbs_info(dataset, cert, base_url):
     else:
         dbs_url = base_url + "/dbs/prod/global/DBSReader/"
 
-    dbs_out= {}
+    dbs_out = {}
     dbs_out[dataset] = {"blocksummaries": [], "blockorigin": [], "filesummaries": []}
     for api in dbs_out[dataset]:
         full_url = dbs_url + api + "?" + urllib.urlencode({'dataset': dataset})
-        data = json.loads(get_content(full_url, cert))     
+        data = json.loads(get_content(full_url))
         dbs_out[dataset][api] = data
     # Separate query for prep_id, since we want any access_type 
     full_url = dbs_url + "datasets?" + urllib.urlencode({'dataset': dataset})
     full_url += "&dataset_access_type=*&detail=True"
-    data = json.loads(get_content(full_url, cert))
+    data = json.loads(get_content(full_url))
     # if dataset is not available in DBS ...
     dbs_out[dataset]["prep_id"] = data[0]["prep_id"] if data else ''
 
-    return dbs_out 
+    return dbs_out
 
-def list_cmp(d1, d2, d3 = []):
+
+def list_cmp(d1, d2, d3=[]):
     """
     Receives list of things (datasets, events, sizes) and compare them.
     """
-    if isinstance(d1, list): 
+    if isinstance(d1, list):
         if not d3:
             if set(d1) ^ set(d2):
                 return 'NOPE'
@@ -132,6 +157,7 @@ def list_cmp(d1, d2, d3 = []):
                 return 'NOPE'
     return 'ok'
 
+
 def couch_verbose(couch_input, couch_summary, verbose=False):
     """
     Print CouchDB and ReqMgr information retrieved for the input in
@@ -144,15 +170,16 @@ def couch_verbose(couch_input, couch_summary, verbose=False):
     print ' - Estimated jobs   :', couch_input['TotalEstimatedJobs']
     print ' - Input Lumis      :', couch_input['TotalInputLumis']
     print ' - Input Files      :', couch_input['TotalInputFiles']
-    print '-'*101
+    print '-' * 101
     if not couch_summary:
         print "Couch output workload summary is empty!"
         return
-    for dset,value in couch_summary.iteritems():
+    for dset, value in couch_summary.iteritems():
         print 'Output Dataset:', dset
         print '- Num events  :', value['events']
         print '- Num files   :', value['dset_files']
         print '- Dset size   :', value["dset_size"]
+
 
 def phedex_verbose(phedex_out, phedex_summary, verbose=False):
     """
@@ -160,7 +187,7 @@ def phedex_verbose(phedex_out, phedex_summary, verbose=False):
     and print them so one can x-check and debug if needed.
     """
     print '\n' + '*' * 44 + ' PhEDEx info ' + '*' * 44
-    for key,value in phedex_summary.iteritems():
+    for key, value in phedex_summary.iteritems():
         print 'Dataset Name :', key
         print '- Dset size  :', value[0]["dset_size"]
         print '- Num blocks :', value[0]["num_block"]
@@ -184,13 +211,14 @@ def phedex_verbose(phedex_out, phedex_summary, verbose=False):
             print 'Rpl bytes    : ', item["bytes"]
             print 'Rpl open     : ', item["is_open"]
 
+
 def dbs_verbose(dbs_summary, verbose=False):
     """
     Print DBS information retrieved for the output samples
     and print them so one can x-check and debug if needed.
     """
     print '\n' + '*' * 45 + ' DBS3 info ' + '*' * 45
-    for key,value in dbs_summary.iteritems():
+    for key, value in dbs_summary.iteritems():
         if value:
             print 'Dataset Name :', key
             print '- PrepID     :', value[0]["prep_id"]
@@ -206,49 +234,52 @@ def dbs_verbose(dbs_summary, verbose=False):
                 print ' - Is Open   :', item["open_for_writing"]
                 print ' - Origin SE :', item["se"]
 
+
 def main(argv=None):
     """
-    Receive a workflow name and proxy location and then gets information
-    from the following sources:
-     - couchdb: gets the output datasets and spec file
-     - phedex: gets dataset, block, files information
-     - dbs: gets dataset, block and files information
+    Receive a workflow name in order to fetch the following information:
+     - from couchdb: gets the output datasets and spec file
+     - from phedex: gets dataset, block, files information
+     - from dbs: gets dataset, block and files information
+
+    It requires tthe user to have the correct X509 environment variables
+    set, otherwise it fails talking to CMSWEB services.
     """
 
-    usage = "usage: %prog -r request_name -p proxy_location [-v|--verbose] [-c|--cms cmsweb_url]"
+    usage = "usage: %prog -r request_name [-v|--verbose] [-c|--cms cmsweb_url]"
     parser = OptionParser(usage=usage)
-    parser.add_option('-r', '--request', help='Request Name as it is in WMStats',dest='request')
-    parser.add_option('-p', '--proxy', help='Path to your proxy or cert location',dest='proxy')
-    parser.add_option('-v', '--verbose', action="store_true", help='Set verbose to print nice info for all 3 services.',dest='verbose')
-    parser.add_option('-c', '--cms', help='Override DBS3 URL. Example: cmsweb.cern.ch',dest='cms')
-    parser.add_option('-m', '--reqmgr', help='Request Manager URL. Example: couch-dev1.cern.ch',dest='reqmgr')
-    parser.add_option('-2', '--reqmgr2', action="store_true", help='Set this variable for reqmgr2 requests.',dest='verbose')
+    parser.add_option('-r', '--request', help='Request Name as it is in WMStats', dest='request')
+    parser.add_option('-v', '--verbose', action="store_true", help='Set verbose to print nice info for all 3 services.',
+                      dest='verbose')
+    parser.add_option('-c', '--cms', help='Override DBS3 URL. Example: cmsweb.cern.ch', dest='cms')
+    parser.add_option('-m', '--reqmgr', help='Request Manager URL. Example: couch-dev1.cern.ch', dest='reqmgr')
+    parser.add_option('-2', '--reqmgr2', action="store_true", help='Set this variable for reqmgr2 requests.',
+                      dest='verbose')
     (options, args) = parser.parse_args()
-    if not (options.request and options.proxy):
-        parser.error("Please supply request name and certificate location")
+    if not options.request:
+        parser.error("You must provide a request name.")
         sys.exit(1)
     reqName = options.request
-    cert = options.proxy
 
     verbose = True if options.verbose else False
-    cmsweb_url = "https://" + options.cms if options.cms else "https://cmsweb-testbed.cern.ch" 
-    reqmgr_url = "https://" + options.reqmgr if options.reqmgr else "https://cmsweb-testbed.cern.ch" 
+    cmsweb_url = "https://" + options.cms if options.cms else "https://cmsweb-testbed.cern.ch"
+    reqmgr_url = "https://" + options.reqmgr if options.reqmgr else "https://cmsweb-testbed.cern.ch"
 
     ### Retrieve ReqMgr information
     # TODO: this information may not be available for all type of requests
     print reqName
-    reqmgr_out = reqmgr_info(reqName, cert, reqmgr_url)
-    if reqmgr_out['RequestStatus'] not in ['completed','closed-out','announced']:
-        print "We cannot validate wfs in this state: %s" % reqmgr_out['RequestStatus'] 
+    reqmgr_out = reqmgr_info(reqName, reqmgr_url)
+    if reqmgr_out['RequestStatus'] not in ['completed', 'closed-out', 'announced']:
+        print "We cannot validate wfs in this state: %s" % reqmgr_out['RequestStatus']
         sys.exit(0)
     if reqmgr_out['RequestType'] == 'DQMHarvest':
-        print "We cannot validate DQMHarvest workflows, there is no output datasetss" 
+        print "We cannot validate DQMHarvest workflows, there is no output datasetss"
         sys.exit(0)
     try:
-        couch_input = {'TotalEstimatedJobs' : reqmgr_out['TotalEstimatedJobs'],
-                       'TotalInputEvents' : reqmgr_out['TotalInputEvents'],
-                       'TotalInputLumis' : reqmgr_out['TotalInputLumis'],
-                       'TotalInputFiles' : reqmgr_out['TotalInputFiles']}
+        couch_input = {'TotalEstimatedJobs': reqmgr_out['TotalEstimatedJobs'],
+                       'TotalInputEvents': reqmgr_out['TotalInputEvents'],
+                       'TotalInputLumis': reqmgr_out['TotalInputLumis'],
+                       'TotalInputFiles': reqmgr_out['TotalInputFiles']}
     except KeyError:
         raise AttributeError("Total* parameter not found in reqmgr_workload_cache database")
 
@@ -269,9 +300,9 @@ def main(argv=None):
 
     ### Retrieve CouchDB information
     # Get workload summary,  output samples, num of files and events
-    couch_out = couch_info(reqName, cert, reqmgr_url)
-    couch_datasets = reqmgr_outputs(reqName, cert, reqmgr_url)
-#    reqmgr_outputs
+    couch_out = couch_info(reqName, reqmgr_url)
+    couch_datasets = reqmgr_outputs(reqName, reqmgr_url)
+    #    reqmgr_outputs
     couch_num_files = {}
     couch_num_events = {}
     couch_dset_size = {}
@@ -283,18 +314,18 @@ def main(argv=None):
                 couch_num_files[dset] = couch_out["workflow_summary"]["output"][dset]['nFiles']
                 couch_num_events[dset] = couch_out["workflow_summary"]["output"][dset]['events']
                 couch_dset_size[dset] = couch_out["workflow_summary"]["output"][dset]["size"]
-                couch_summary[dset] = {'events' : couch_out["workflow_summary"]["output"][dset]["events"],
-                                       'dset_files' : couch_out["workflow_summary"]["output"][dset]["nFiles"],
-                                       'dset_size' : couch_out["workflow_summary"]["output"][dset]["size"]}
+                couch_summary[dset] = {'events': couch_out["workflow_summary"]["output"][dset]["events"],
+                                       'dset_files': couch_out["workflow_summary"]["output"][dset]["nFiles"],
+                                       'dset_size': couch_out["workflow_summary"]["output"][dset]["size"]}
             else:
                 couch_num_files[dset], couch_num_events[dset], couch_dset_size[dset] = '', '', ''
                 couch_summary[dset] = {'events': '', 'dset_files': '', 'dset_size': ''}
 
     ### Retrieve PhEDEx information
     # Get general phedex info, number of files and size of dataset
-    phedex_out = phedex_info(couch_datasets, cert, cmsweb_url)
+    phedex_out = phedex_info(couch_datasets, cmsweb_url)
     phedex_datasets = [i['name'].split('#')[0] for i in phedex_out["blockreplicas"]["phedex"]["block"]]
-    #phedex_datasets = couch_datasets
+    # phedex_datasets = couch_datasets
     phedex_datasets = list(set(phedex_datasets))
     phedex_num_files = {}
     phedex_dset_size = {}
@@ -302,31 +333,31 @@ def main(argv=None):
     phedex_summary = {}
     for item in phedex_out["blockreplicas"]["phedex"]["block"]:
         dset = item['name'].split('#')[0]
-        #phedex_block_se[item['name']] = item['replica'][0]['node']
-        phedex_block_se[item['name']] = item['replica'][0]['se']
+        phedex_block_se[item['name']] = item['replica'][0]['node']
+        # phedex_block_se[item['name']] = item['replica'][0]['se']
         if dset not in phedex_summary:
-            phedex_summary[dset] = [{'block' : item['name'],
-                                         'files' : item['files'],
-                                         'bytes' : item['bytes'],
-                                         'is_open' : item['is_open'],
-                                         'node' : item['replica'][0]['node'],
-                                         'se' : item['replica'][0]['se'],
-                                         'custodial' : item['replica'][0]['custodial'],
-                                         'complete' : item['replica'][0]['complete'],
-                                         'subscribed' : item['replica'][0]['subscribed'],
-                                         'dset_size' : item['bytes'],
-                                         'num_block' : 1,
-                                         'dset_files' : item['files']}]
+            phedex_summary[dset] = [{'block': item['name'],
+                                     'files': item['files'],
+                                     'bytes': item['bytes'],
+                                     'is_open': item['is_open'],
+                                     'node': item['replica'][0]['node'],
+                                     'se': item['replica'][0]['se'],
+                                     'custodial': item['replica'][0]['custodial'],
+                                     'complete': item['replica'][0]['complete'],
+                                     'subscribed': item['replica'][0]['subscribed'],
+                                     'dset_size': item['bytes'],
+                                     'num_block': 1,
+                                     'dset_files': item['files']}]
         else:
-            phedex_summary[dset].append({'block' : item['name'],
-                                         'files' : item['files'],
-                                         'bytes' : item['bytes'],
-                                         'is_open' : item['is_open'],
-                                         'node' : item['replica'][0]['node'],
-                                         'se' : item['replica'][0]['se'],
-                                         'custodial' : item['replica'][0]['custodial'],
-                                         'complete' : item['replica'][0]['complete'],
-                                         'subscribed' : item['replica'][0]['subscribed']})
+            phedex_summary[dset].append({'block': item['name'],
+                                         'files': item['files'],
+                                         'bytes': item['bytes'],
+                                         'is_open': item['is_open'],
+                                         'node': item['replica'][0]['node'],
+                                         'se': item['replica'][0]['se'],
+                                         'custodial': item['replica'][0]['custodial'],
+                                         'complete': item['replica'][0]['complete'],
+                                         'subscribed': item['replica'][0]['subscribed']})
             phedex_summary[dset][0]['dset_size'] += item['bytes']
             phedex_summary[dset][0]['num_block'] += 1
             phedex_summary[dset][0]['dset_files'] += item['files']
@@ -349,37 +380,37 @@ def main(argv=None):
     dbs_block_se = {}
     dbs_summary = {}
     for dset in dbs_datasets:
-        dbs_out = dbs_info(dset, cert, cmsweb_url)
+        dbs_out = dbs_info(dset, cmsweb_url)
         for item in dbs_out[dset]['blockorigin']:
             dbs_block_se[item['block_name']] = item['origin_site_name']
             if dset not in dbs_summary:
-                dbs_summary[dset] = [{'block_name' : item['block_name'],
-                                         'file_count' : item['file_count'],
-                                         'block_size' : item['block_size'],
-                                         'open_for_writing' : item['open_for_writing'],
-                                         'se' : item['origin_site_name'],
-                                         'dset_size' : 0,
-                                         'num_block' : 0,
-                                         'dset_files' : 0,
-                                         'num_event' : 0,
-                                         'num_lumi' : 0}]
+                dbs_summary[dset] = [{'block_name': item['block_name'],
+                                      'file_count': item['file_count'],
+                                      'block_size': item['block_size'],
+                                      'open_for_writing': item['open_for_writing'],
+                                      'se': item['origin_site_name'],
+                                      'dset_size': 0,
+                                      'num_block': 0,
+                                      'dset_files': 0,
+                                      'num_event': 0,
+                                      'num_lumi': 0}]
             else:
-                dbs_summary[dset].append({'block_name' : item['block_name'],
-                                         'file_count' : item['file_count'],
-                                         'block_size' : item['block_size'],
-                                         'open_for_writing' : item['open_for_writing'],
-                                         'se' : item['origin_site_name']})
+                dbs_summary[dset].append({'block_name': item['block_name'],
+                                          'file_count': item['file_count'],
+                                          'block_size': item['block_size'],
+                                          'open_for_writing': item['open_for_writing'],
+                                          'se': item['origin_site_name']})
         for item in dbs_out[dset]['blocksummaries']:
             dbs_num_files[dset] = item['num_file']
             dbs_num_events[dset] = item['num_event']
             dbs_dset_size[dset] = item['file_size']
         for item in dbs_out[dset]['filesummaries']:
-            dbs_summary[dset][0]['dset_size'] += item['file_size'] 
-            dbs_summary[dset][0]['num_block'] += item['num_block'] 
-            dbs_summary[dset][0]['dset_files'] += item['num_file'] 
-            dbs_summary[dset][0]['num_event'] += item['num_event'] 
-            dbs_summary[dset][0]['num_lumi'] += item['num_lumi'] 
-        # temp fix when data is not in DBS
+            dbs_summary[dset][0]['dset_size'] += item['file_size']
+            dbs_summary[dset][0]['num_block'] += item['num_block']
+            dbs_summary[dset][0]['dset_files'] += item['num_file']
+            dbs_summary[dset][0]['num_event'] += item['num_event']
+            dbs_summary[dset][0]['num_lumi'] += item['num_lumi']
+            # temp fix when data is not in DBS
         if dset not in dbs_summary:
             dbs_summary[dset] = []
             dbs_num_lumis[dset] = 0
@@ -388,7 +419,7 @@ def main(argv=None):
             dbs_num_lumis[dset] = dbs_summary[dset][0]['num_lumi']
 
     ### Perform the FINAL checks
-    print ''+split_line 
+    print '' + split_line
     print '|' + ' ' * 28 + '| CouchDB | PhEDEx | DBS  |'
     print separ_line
 
@@ -427,14 +458,15 @@ def main(argv=None):
     comp_res = list_cmp(phedex_block_se, dbs_block_se)
     print '| Are blocks in the same SE? | %-7s | %-6s | %-4s |' % ('--', comp_res, comp_res)
     print split_line
-    #print phedex_block_se
-    #print dbs_block_se
+    # print phedex_block_se
+    # print dbs_block_se
     ### Starts VERBOSE mode for the information retrieved so far
     if verbose:
         couch_verbose(couch_input, couch_summary, False)
-        #dbs_verbose(dbs_out, dbs_summary, False)
+        # dbs_verbose(dbs_out, dbs_summary, False)
         dbs_verbose(dbs_summary, False)
         phedex_verbose(phedex_out, phedex_summary, False)
+
 
 if __name__ == "__main__":
     sys.exit(main())
