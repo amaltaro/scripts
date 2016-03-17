@@ -11,9 +11,9 @@ from copy import deepcopy
 from WMCore.WMSpec.WMWorkload import WMWorkloadHelper
 
 #url = "cmsweb.cern.ch"
-url = "alan-cloud1.cern.ch"
-#url = "cmsweb-testbed.cern.ch"
-#url2 = "cmsweb-testbed.cern.ch"
+#url = "alan-cloud1.cern.ch"
+url = "cmsweb-testbed.cern.ch"
+url2 = "cmsweb-testbed.cern.ch"
 
 reqmgrCouchURL = "https://"+url+"/couchdb/reqmgr_workload_cache"
 
@@ -62,11 +62,14 @@ def retrieveSchema(workflowName):
     helper = WMWorkloadHelper()
     helper.load(specURL)
 
-    paramBlacklist = ['BlockCloseMaxEvents', 'BlockCloseMaxFiles', 'BlockCloseMaxSize', 'BlockCloseMaxWaitTime',
-                      'CouchURL', 'CouchWorkloadDBName', 'GracePeriod', 'Group', 'HardTimeout', 'InitialPriority',
-                      'inputMode', 'OutputDatasets', 'ReqMgr2Only', 'Requestor', 'RequestDate' 'RequestorDN',
+    paramBlacklist = ['AcquisitionEra', 'BlockCloseMaxEvents', 'BlockCloseMaxFiles', 'BlockCloseMaxSize',
+                      'BlockCloseMaxWaitTime', 'CouchURL', 'CouchWorkloadDBName', 'CustodialGroup',
+                      'CustodialSubType', 'Dashboard', 'GracePeriod', 'Group', 'HardTimeout', 'InitialPriority',
+                      'inputMode', 'MaxMergeEvents', 'MaxMergeSize', 'MaxRSS', 'MaxVSize', 'MergedLFNBase',
+                      'MinMergeSize', 'NonCustodialGroup', 'NonCustodialSubType', 'ProcessingString',
+                      'OutputDatasets', 'ReqMgr2Only', 'Requestor', 'RequestDate' 'RequestorDN',
                       'RequestName', 'RequestStatus', 'RequestTransition', 'RequestWorkflow', 'SiteWhitelist',
-                      'SoftTimeout', 'SoftwareVersions', 'Team', 'timeStamp']
+                      'SoftTimeout', 'SoftwareVersions', 'SubscriptionPriority', 'Team', 'timeStamp']
     schema = {}
     for (key, value) in helper.data.request.schema.dictionary_whole_tree_().iteritems():
         if not value or key in paramBlacklist:
@@ -98,6 +101,7 @@ def submitWorkflow(schema):
         if hasattr(resp.msg, "x-error-detail"):
             print "Error message: %s" % resp.msg["x-error-detail"]
             sys.exit(1)
+    print data
     data = json.loads(data)
     requestName = data['result'][0]['request']
     print "  Request '%s' successfully created." % requestName
@@ -113,7 +117,6 @@ if __name__ == "__main__":
     workflow = sys.argv[1]
     if len(sys.argv) == 3:
         prio = int(sys.argv[2])
-        print type(prio)
         changePrio(url, workflow, prio)
     else:
         schema = retrieveSchema(workflow)
