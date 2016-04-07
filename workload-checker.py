@@ -11,8 +11,8 @@ from urlparse import urljoin
 from pprint import pprint
 
 # table parameters 
-separ_line = "|" + "-" * 54 + "|"
-split_line = "|" + "*" * 54 + "|"
+separ_line = "|" + "-" * 51 + "|"
+split_line = "|" + "*" * 51 + "|"
 
 # ID for the User-Agent
 CLIENT_ID = 'workload-checker/1.1::python/%s.%s' % sys.version_info[:2]
@@ -92,7 +92,7 @@ def couch_info(reqName, base_url):
     return couch_output
 
 
-def reqmgr_info(reqName, base_url):
+def reqmgr_info(reqName, base_url, reqmgr2):
     """
     Queries Request Manager database for the spec file and a few other stuff
     """
@@ -136,6 +136,41 @@ def dbs_info(dataset, base_url):
 
     return dbs_out
 
+
+def dqm_gui(url):
+    """
+    Fetch all the data from the DQMGui
+    """
+    dqmgui_url = url + "/data/json/samples"
+    dqmgui_out = json.loads(get_content(dqmgui_url))
+    return dqmgui_out['samples']
+
+
+def harvesting(workload, out_dsets):
+    """
+    Parse the request spec and query DQMGui in case harvesting is enabled
+    """
+    if workload['RequestType'] == 'DQMHarvest':
+        good_output = workload['InputDatasets']
+    elif str(workload.get('EnableHarvesting', 'False')) == 'True':
+        good_output = [dset for dset in out_dsets if dset.endswith('/DQMIO') or dset.endswith('/DQM')]
+    else:
+        return
+
+    urls = workload['DQMUploadUrl'].split(';')
+    if not good_output:
+        print "Well, it's embarassing! Harvesting is enabled but there is nothing to harvest"
+        return
+
+    for url in urls:
+        print "Harvesting enabled. Querying DQMGui at: %s" % url
+        all_samples = dqm_gui(url)
+        for out_dset in good_output:
+            for sample in all_samples:
+                for item in sample['items']:
+                    if out_dset == item['dataset']:
+                        print item  
+        
 
 def list_cmp(d1, d2, d3=[]):
     """
@@ -202,14 +237,6 @@ def phedex_verbose(phedex_out, phedex_summary, verbose=False):
             print ' - Custodial :', item["custodial"]
             print ' - Complete  :', item["complete"]
             print ' - Subscribed:', item["subscribed"]
-    # TODO: not sure we want this replica verbose thing
-    if verbose:
-        print '\n' + '*' * 44 + ' Replica info ' + '*' * 44
-        for item in phedex_out["blockreplicas"]["phedex"]["block"]:
-            print 'Rpl Name     : ', item["name"]
-            print 'Rpl files    : ', item["files"]
-            print 'Rpl bytes    : ', item["bytes"]
-            print 'Rpl open     : ', item["is_open"]
 
 
 def dbs_verbose(dbs_summary, verbose=False):
@@ -235,45 +262,49 @@ def dbs_verbose(dbs_summary, verbose=False):
                 print ' - Origin SE :', item["se"]
 
 
-def main(argv=None):
+def main():
     """
+    Requirements: you need to have your proxy and proper x509 environment
+     variables set.
+
     Receive a workflow name in order to fetch the following information:
      - from couchdb: gets the output datasets and spec file
      - from phedex: gets dataset, block, files information
      - from dbs: gets dataset, block and files information
-
-    It requires tthe user to have the correct X509 environment variables
-    set, otherwise it fails talking to CMSWEB services.
     """
 
-    usage = "usage: %prog -r request_name [-v|--verbose] [-c|--cms cmsweb_url]"
+    usage = "usage: %prog -w workflowName -f fileName -c cmswebUrl -r reqMgrUrl [-2|--reqmgr2] [-v|--verbose]"
     parser = OptionParser(usage=usage)
-    parser.add_option('-r', '--request', help='Request Name as it is in WMStats', dest='request')
-    parser.add_option('-v', '--verbose', action="store_true", help='Set verbose to print nice info for all 3 services.',
-                      dest='verbose')
-    parser.add_option('-c', '--cms', help='Override DBS3 URL. Example: cmsweb.cern.ch', dest='cms')
-    parser.add_option('-m', '--reqmgr', help='Request Manager URL. Example: couch-dev1.cern.ch', dest='reqmgr')
-    parser.add_option('-2', '--reqmgr2', action="store_true", help='Set this variable for reqmgr2 requests.',
-                      dest='verbose')
+    parser.add_option('-w', '--workflow', help='A single workflow name.', dest='workflow')
+    parser.add_option('-f', '--file', help='Plain text file containing request names (one per line).', dest='inputFile')
+    parser.add_option('-c', '--cms', help='CMSWEB url to talk to DBS/PhEDEx. E.g: cmsweb.cern.ch', dest='cms')
+    parser.add_option('-r', '--reqmgr', help='Request Manager URL. Example: couch-dev1.cern.ch', dest='reqmgr')
+    parser.add_option('-2', '--reqmgr2', help='Set this variable for reqmgr2 requests.', dest='reqmgr2', action="store_true")
+    parser.add_option('-v', '--verbose', help='Enable verbose mode.', dest='verbose', action="store_true")
     (options, args) = parser.parse_args()
-    if not options.request:
-        parser.error("You must provide a request name.")
+
+    reqName = []
+    if options.workflow:
+        #reqName.append(options.workflow)
+        reqName = options.workflow
+    elif options.inputFile:
+        with open(options.inputFile, 'r') as f:
+            reqName.append(f.readlines())
+    else:
+        parser.error("You must provide either a workflow name or an input file name.")
         sys.exit(1)
-    reqName = options.request
 
     verbose = True if options.verbose else False
     cmsweb_url = "https://" + options.cms if options.cms else "https://cmsweb-testbed.cern.ch"
     reqmgr_url = "https://" + options.reqmgr if options.reqmgr else "https://cmsweb-testbed.cern.ch"
+    reqmgr2 = True if options.reqmgr2 else False
 
     ### Retrieve ReqMgr information
     # TODO: this information may not be available for all type of requests
     print reqName
-    reqmgr_out = reqmgr_info(reqName, reqmgr_url)
+    reqmgr_out = reqmgr_info(reqName, reqmgr_url, reqmgr2)
     if reqmgr_out['RequestStatus'] not in ['completed', 'closed-out', 'announced']:
         print "We cannot validate wfs in this state: %s" % reqmgr_out['RequestStatus']
-        sys.exit(0)
-    if reqmgr_out['RequestType'] == 'DQMHarvest':
-        print "We cannot validate DQMHarvest workflows, there is no output datasetss"
         sys.exit(0)
     try:
         couch_input = {'TotalEstimatedJobs': reqmgr_out['TotalEstimatedJobs'],
@@ -282,6 +313,14 @@ def main(argv=None):
                        'TotalInputFiles': reqmgr_out['TotalInputFiles']}
     except KeyError:
         raise AttributeError("Total* parameter not found in reqmgr_workload_cache database")
+
+    ### handle harvesting case
+    couch_datasets = reqmgr_outputs(reqName, reqmgr_url)
+    harvesting(reqmgr_out, couch_datasets)
+    if reqmgr_out['RequestType'] == 'DQMHarvest':
+        print "We cannot validate DQMHarvest workflows, look it yourself at: ",
+        print "https://cmsweb-testbed.cern.ch/dqm/dev/data/browse/ROOT/"
+        sys.exit(0)
 
     couch_input['Comments'] = reqmgr_out['Comments'] if 'Comments' in reqmgr_out else ''
     print " - Comments: %s" % couch_input['Comments']
@@ -301,7 +340,6 @@ def main(argv=None):
     ### Retrieve CouchDB information
     # Get workload summary,  output samples, num of files and events
     couch_out = couch_info(reqName, reqmgr_url)
-    couch_datasets = reqmgr_outputs(reqName, reqmgr_url)
     #    reqmgr_outputs
     couch_num_files = {}
     couch_num_events = {}
@@ -334,7 +372,7 @@ def main(argv=None):
     for item in phedex_out["blockreplicas"]["phedex"]["block"]:
         dset = item['name'].split('#')[0]
         phedex_block_se[item['name']] = item['replica'][0]['node']
-        # phedex_block_se[item['name']] = item['replica'][0]['se']
+        ##        phedex_block_se[item['name']] = item['replica'][0]['se']
         if dset not in phedex_summary:
             phedex_summary[dset] = [{'block': item['name'],
                                      'files': item['files'],
@@ -420,23 +458,23 @@ def main(argv=None):
 
     ### Perform the FINAL checks
     print '' + split_line
-    print '|' + ' ' * 28 + '| CouchDB | PhEDEx | DBS  |'
+    print '|' + ' ' * 25 + '| CouchDB | PhEDEx | DBS  |'
     print separ_line
 
     # Perform checks among the 3 services: dset_name, dset_files and dset_size
     comp_res = list_cmp(couch_summary.keys(), phedex_summary.keys(), dbs_summary.keys())
-    print '| Same dataset name          | {comp_res:7s} | {comp_res:6s} | {comp_res:4s} |'.format(comp_res=comp_res)
+    print '| Same dataset name       | {comp_res:7s} | {comp_res:6s} | {comp_res:4s} |'.format(comp_res=comp_res)
     comp_res = list_cmp(couch_num_files, phedex_num_files, dbs_num_files)
-    print '| Same number of files       | {comp_res:7s} | {comp_res:6s} | {comp_res:4s} | '.format(comp_res=comp_res)
+    print '| Same number of files    | {comp_res:7s} | {comp_res:6s} | {comp_res:4s} | '.format(comp_res=comp_res)
     comp_res = list_cmp(couch_dset_size, phedex_dset_size, dbs_dset_size)
-    print '| Same dataset size          | {comp_res:7s} | {comp_res:6s} | {comp_res:4s} | '.format(comp_res=comp_res)
+    print '| Same dataset size       | {comp_res:7s} | {comp_res:6s} | {comp_res:4s} | '.format(comp_res=comp_res)
 
     # Perform check between Couch and DBS only: num_events
     comp_res = list_cmp(couch_num_events, dbs_num_events)
-    print '| Same number of events      | %-7s | %-6s | %-4s |' % (comp_res, '--', comp_res)
+    print '| Same number of events   | %-7s | %-6s | %-4s |' % (comp_res, '--', comp_res)
 
     comp_res = list_cmp([couch_input['TotalInputLumis']], list(set(dbs_num_lumis.values())))
-    print '| Same number of lumis       | %-7s | %-6s | %-4s |' % (comp_res, '--', comp_res)
+    print '| Same number of lumis    | %-7s | %-6s | %-4s |' % (comp_res, '--', comp_res)
 
     # Check whether all blocks are closed
     phe_res, dbs_res = 'ok', 'ok'
@@ -452,14 +490,13 @@ def main(argv=None):
                     dbs_res = 'NOPE'
                     break
 
-    print '| Are all blocks closed?     | %-7s | %-6s | %-4s |' % ('--', phe_res, dbs_res)
+    print '| All blocks closed?      | %-7s | %-6s | %-4s |' % ('--', phe_res, dbs_res)
 
     # Check whether files are registered in the same SE
     comp_res = list_cmp(phedex_block_se, dbs_block_se)
-    print '| Are blocks in the same SE? | %-7s | %-6s | %-4s |' % ('--', comp_res, comp_res)
+    print '| Blocks in the same PNN? | %-7s | %-6s | %-4s |' % ('--', comp_res, comp_res)
     print split_line
-    # print phedex_block_se
-    # print dbs_block_se
+
     ### Starts VERBOSE mode for the information retrieved so far
     if verbose:
         couch_verbose(couch_input, couch_summary, False)
