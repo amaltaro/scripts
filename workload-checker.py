@@ -57,8 +57,10 @@ def ifDict(val_in):
 def get_content(url, params=None):
     cert = x509()
     client = '%s (%s)' % (CLIENT_ID, os.environ.get('USER', ''))
-    opener = urllib2.build_opener(HTTPSClientAuthHandler(cert, cert))
-    opener.addheaders = [("User-Agent", client)]
+    handler = HTTPSClientAuthHandler(cert, cert)
+    opener = urllib2.build_opener(handler)
+    opener.addheaders = [("User-Agent", client),
+                         ("Accept", "application/json")]
     try:
         response = opener.open(url, params)
         output = response.read()
@@ -69,7 +71,7 @@ def get_content(url, params=None):
     except URLError as e:
         print 'Failed to reach server at %s' % url
         print 'Reason: ', e.reason
-        sys.exit(1)
+        sys.exit(2)
     return output
 
 
@@ -92,12 +94,13 @@ def couch_info(reqName, base_url):
     return couch_output
 
 
-def reqmgr_info(reqName, base_url, reqmgr2):
+def reqmgr_info(reqName, base_url):
     """
     Queries Request Manager database for the spec file and a few other stuff
     """
-    couch_reqmgr = urljoin(base_url + "/couchdb/reqmgr_workload_cache/", reqName)
-    reqmgr_output = json.loads(get_content(couch_reqmgr))
+    urn = urljoin(base_url + "/reqmgr2/data/request/", reqName)
+    # reqmgr2 returns a different format
+    reqmgr_output = json.loads(get_content(urn))['result'][0][reqName]
     return reqmgr_output
 
 
@@ -273,13 +276,12 @@ def main():
      - from dbs: gets dataset, block and files information
     """
 
-    usage = "usage: %prog -w workflowName -f fileName -c cmswebUrl -r reqMgrUrl [-2|--reqmgr2] [-v|--verbose]"
+    usage = "usage: %prog -w workflowName -f fileName -c cmswebUrl -r reqMgrUrl [-v|--verbose]"
     parser = OptionParser(usage=usage)
     parser.add_option('-w', '--workflow', help='A single workflow name.', dest='workflow')
     parser.add_option('-f', '--file', help='Plain text file containing request names (one per line).', dest='inputFile')
     parser.add_option('-c', '--cms', help='CMSWEB url to talk to DBS/PhEDEx. E.g: cmsweb.cern.ch', dest='cms')
     parser.add_option('-r', '--reqmgr', help='Request Manager URL. Example: couch-dev1.cern.ch', dest='reqmgr')
-    parser.add_option('-2', '--reqmgr2', help='Set this variable for reqmgr2 requests.', dest='reqmgr2', action="store_true")
     parser.add_option('-v', '--verbose', help='Enable verbose mode.', dest='verbose', action="store_true")
     (options, args) = parser.parse_args()
 
@@ -292,20 +294,19 @@ def main():
             reqName.append(f.readlines())
     else:
         parser.error("You must provide either a workflow name or an input file name.")
-        sys.exit(1)
+        sys.exit(3)
 
     verbose = True if options.verbose else False
     cmsweb_url = "https://" + options.cms if options.cms else "https://cmsweb-testbed.cern.ch"
     reqmgr_url = "https://" + options.reqmgr if options.reqmgr else "https://cmsweb-testbed.cern.ch"
-    reqmgr2 = True if options.reqmgr2 else False
 
     ### Retrieve ReqMgr information
     # TODO: this information may not be available for all type of requests
     print reqName
-    reqmgr_out = reqmgr_info(reqName, reqmgr_url, reqmgr2)
+    reqmgr_out = reqmgr_info(reqName, reqmgr_url)
     if reqmgr_out['RequestStatus'] not in ['completed', 'closed-out', 'announced']:
         print "We cannot validate wfs in this state: %s" % reqmgr_out['RequestStatus']
-        sys.exit(0)
+        sys.exit(4)
     try:
         couch_input = {'TotalEstimatedJobs': reqmgr_out['TotalEstimatedJobs'],
                        'TotalInputEvents': reqmgr_out['TotalInputEvents'],
@@ -315,15 +316,17 @@ def main():
         raise AttributeError("Total* parameter not found in reqmgr_workload_cache database")
 
     ### handle harvesting case
-    couch_datasets = reqmgr_outputs(reqName, reqmgr_url)
+    if reqmgr_out.get('ReqMgr2Only'):
+        couch_datasets = reqmgr_out['OutputDatasets']
+    else:
+        couch_datasets = reqmgr_outputs(reqName, reqmgr_url)
     harvesting(reqmgr_out, couch_datasets)
-    if reqmgr_out['RequestType'] == 'DQMHarvest':
-        print "We cannot validate DQMHarvest workflows, look it yourself at: ",
-        print "https://cmsweb-testbed.cern.ch/dqm/dev/data/browse/ROOT/"
-        sys.exit(0)
-
     couch_input['Comments'] = reqmgr_out['Comments'] if 'Comments' in reqmgr_out else ''
     print " - Comments: %s" % couch_input['Comments']
+    if reqmgr_out['RequestType'] == 'DQMHarvest':
+        # nothing we can validate besides looking at the DQMGui
+        sys.exit(5)
+
     couch_input['InputDataset'] = reqmgr_out['InputDataset'] if 'InputDataset' in reqmgr_out else ''
     if 'Task1' in reqmgr_out and 'InputDataset' in reqmgr_out['Task1']:
         couch_input['InputDataset'] = reqmgr_out['Task1']['InputDataset']
