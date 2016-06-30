@@ -628,7 +628,7 @@ def main():
                     jType = 'RelVal'
                 elif task == 'Reco':  # If PromptReco job (Otherwise type is Processing)
                     jType = 'Reco'
-                elif type not in jobTypes:  # If job type is not standard
+                elif jType not in jobTypes:  # If job type is not standard
                     jType = jobType(jobId, schedd_name, task)
 
                 siteRunning = job.get('MATCH_EXP_JOBGLIDEIN_CMSSite', '')
