@@ -31,7 +31,6 @@ UNMERGED_FILES = ['/store/unmerged/RunIISummer15GS/GluGluToHiggs0Mf05ph0ContinTo
               '/store/unmerged/RunIISummer15GS/GluGluToHiggs0Mf05ph0ContinToZZTo4tau_M125_10GaSM_13TeV_MCFM701_pythia8/GEN-SIM/MCRUN2_71_V1-v1/60000/66AC4615-F757-E611-BDE3-FA163E48182A.root',
               '/store/unmerged/RunIISummer15GS/GluGluToHiggs0Mf05ph0ContinToZZTo4tau_M125_10GaSM_13TeV_MCFM701_pythia8/GEN-SIM/MCRUN2_71_V1-v1/60000/027EB1AA-F757-E611-94B5-FA163E5C0B9A.root']
 
-"""
 LOGARC_TARBALLS = ['/store/unmerged/logs/prod/2016/8/1/pdmvserv_HIG-RunIISummer15GS-01627_00417_v0__160721_121444_9806/MonteCarloFromGEN/0000/0/d5f287fa-57e3-11e6-a591-001e67abf094-172-0-logArchive.tar.gz',
               '/store/unmerged/logs/prod/2016/8/1/pdmvserv_HIG-RunIISummer15GS-01627_00417_v0__160721_121444_9806/MonteCarloFromGEN/0000/0/d5f287fa-57e3-11e6-a591-001e67abf094-188-0-logArchive.tar.gz',
               '/store/unmerged/logs/prod/2016/8/1/pdmvserv_HIG-RunIISummer15GS-01627_00417_v0__160721_121444_9806/MonteCarloFromGEN/0000/0/d5f287fa-57e3-11e6-a591-001e67abf094-217-0-logArchive.tar.gz',
@@ -43,9 +42,8 @@ LOGARC_TARBALLS = ['/store/unmerged/logs/prod/2016/8/1/pdmvserv_HIG-RunIISummer1
               '/store/unmerged/logs/prod/2016/8/1/pdmvserv_HIG-RunIISummer15GS-01627_00417_v0__160721_121444_9806/MonteCarloFromGEN/0000/0/d5f287fa-57e3-11e6-a591-001e67abf094-227-0-logArchive.tar.gz',
               '/store/unmerged/logs/prod/2016/8/1/pdmvserv_HIG-RunIISummer15GS-01627_00417_v0__160721_121444_9806/MonteCarloFromGEN/0000/0/d5f287fa-57e3-11e6-a591-001e67abf094-281-0-logArchive.tar.gz',
               '/store/unmerged/logs/prod/2016/8/1/pdmvserv_HIG-RunIISummer15GS-01627_00417_v0__160721_121444_9806/MonteCarloFromGEN/0000/0/d5f287fa-57e3-11e6-a591-001e67abf094-404-0-logArchive.tar.gz']
-"""
 
-LOGARC_TARBALLS = ['/store/unmerged/logs/prod/2016/8/1/pdmvserv_HIG-RunIISummer15GS-01627_00417_v0__160721_121444_9806/MonteCarloFromGEN/0000/0/d5f287fa-57e3-11e6-a591-001e67abf094-172-0-logArchive.tar.gz']
+#LOGARC_TARBALLS = ['/store/unmerged/logs/prod/2016/8/1/pdmvserv_HIG-RunIISummer15GS-01627_00417_v0__160721_121444_9806/MonteCarloFromGEN/0000/0/d5f287fa-57e3-11e6-a591-001e67abf094-172-0-logArchive.tar.gz']
 
 
 def getText(nodelist):
@@ -66,14 +64,16 @@ def extractFile(logArchName):
     rawdata = None
     logArchName = 'WMTaskSpace/logCollect1/' + logArchName
     fjrFile = 'cmsRun1/FrameworkJobReport.xml'
-    with tarfile.open(logArchName, 'r:gz') as tf:
-        try:
+    try:
+        with tarfile.open(logArchName, 'r:gz') as tf:
             fjr = tf.extractfile(fjrFile)
             rawdata = fjr.read()
-        except KeyError:
-            print("Failed to find %s in the tarballs dir." % fjrFile)
-        except Exception:
-            print("Something really bad happened while extracting FJR from the logArchive tarball")
+    except IOError:
+        print("File %s not found in the logCollect tarball" % logArchName)
+    except KeyError:
+        print("Failed to find %s in the tarballs dir." % fjrFile)
+    except Exception:
+        print("Something really bad happened while extracting FJR from the logArchive tarball")
     return rawdata
 
 def getInputFileInfo(dom):
