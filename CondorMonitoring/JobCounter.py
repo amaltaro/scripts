@@ -32,7 +32,12 @@ mailingList = ['dmason@fnal.gov', 'alan.malta@cern.ch', 'katherine.rozo@cern.ch'
 ## Alan updated to alias on 20/Apr/2016
 global_pool = ['cmsgwms-collector-global.cern.ch:9620']
 
-tier0_pool = ['cmsgwms-collector-tier0.cern.ch']
+# There is no point of querying T0 pool as schedds are also flocking to the Global pool
+# After discussions with Antonio, it was expected to run Prompt-Reco on T1s and
+# Both pools are returning same list of schedulers and jobs, so here comes a double counting
+# tier0_pool = ['cmsgwms-collector-tier0.cern.ch']
+# For now commenting out and leaving it for Antonio to discuss in SI meeting
+tier0_pool = []
 
 ##The following groups should be updated according to https://twiki.cern.ch/twiki/bin/view/CMSPublic/CompOpsWorkflowTeamWmAgentRealeases
 relvalAgents = ['vocms053.cern.ch', 'vocms026.cern.ch']
@@ -654,15 +659,12 @@ def main():
                         # It is not correct to assume it is 1 cpu. Skip this job.
                         print 'Failed to extract RequestCpus from this job %s' % job
                         continue
-                    siteToExtract = str(job['DESIRED_Sites']).replace(' ', '').split(",")
-                    while '' in siteToExtract:
-                        siteToExtract.remove('')
+                    siteToExtract = [site for site in job['DESIRED_Sites'].replace(' ', '').split(",") if site]
                     if not siteToExtract:
                         # There are some cases in CRAB, which it makes to have zombie jobs without any DESIRED_Sites.
                         # See here: https://github.com/dmwm/CRABServer/issues/4933
                         # Skip it as it will not be able to run anywhere..
-                        print 'No Sites... %s' % job
-                        continue
+                        siteToExtract = ['NoSiteDefined']
 
                     if schedd_name in relvalAgents:  # If RelVal job
                         jType = 'RelVal'
@@ -673,23 +675,8 @@ def main():
 
                     siteRunning = job.get(jobKeys[schedd_type]['sitename'], '')
                     if siteName(siteRunning) and status == 2:  # If job is currently running
-                        siteToExtract = [siteRunning]
-
-                    # Ignore jobs to the T1s from the Tier-0 pool
-                    # Avoid double accounting with the global pool
-                    if collector_name == tier0_pool[0]:
-                        if not 'T2_CH_CERN_T0' in siteToExtract:
-                            continue
-
-                    # Ignore jobs to T2_CH_CERN_T0 from the global pool
-                    # Avoid double accounting with the Tier-0 pool
-                    if collector_name == global_pool[0]:
-                        if 'T2_CH_CERN_T0' in siteToExtract:
-                            continue
-
-                    if status == 2 and siteRunning:  # Running
-                        increaseRunning(siteToExtract[0], schedd_name, jType, cpus)
-                        increaseRunningWorkflow(workflow, siteToExtract[0], 1)
+                        increaseRunning(siteRunning, schedd_name, jType, cpus)
+                        increaseRunningWorkflow(workflow, siteRunning, 1)
                     elif status == 1:  # Pending
                         pendingCache.append([schedd_name, jType, cpus, siteToExtract])
                         increasePendingWorkflow(workflow, siteToExtract, 1)
