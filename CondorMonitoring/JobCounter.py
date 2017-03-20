@@ -30,8 +30,14 @@ mailingList = ['dmason@fnal.gov', 'alan.malta@cern.ch', 'katherine.rozo@cern.ch'
 
 ## Job Collectors (Condor pools)
 ## Alan updated to alias on 20/Apr/2016
-global_pool = ['cmsgwms-collector-global.cern.ch']
-tier0_pool = ['cmsgwms-collector-tier0.cern.ch']
+global_pool = ['cmsgwms-collector-global.cern.ch:9620']
+
+# There is no point of querying T0 pool as schedds are also flocking to the Global pool
+# After discussions with Antonio, it was expected to run Prompt-Reco on T1s and
+# Both pools are returning same list of schedulers and jobs, so here comes a double counting
+# tier0_pool = ['cmsgwms-collector-tier0.cern.ch']
+# For now commenting out and leaving it for Antonio to discuss in SI meeting
+tier0_pool = []
 
 ##The following groups should be updated according to https://twiki.cern.ch/twiki/bin/view/CMSPublic/CompOpsWorkflowTeamWmAgentRealeases
 relvalAgents = ['vocms053.cern.ch', 'vocms026.cern.ch']
@@ -39,7 +45,7 @@ testAgents = ['cmssrv113.fnal.gov', 'vocms040.cern.ch', 'vocms009.cern.ch', 'voc
 
 ##Job expected types
 jobTypes = ['Processing', 'Production', 'Skim', 'Harvest', 'Merge', 'LogCollect', 'Cleanup', 'RelVal', 'Express',
-            'Repack', 'Reco']
+            'Repack', 'Reco', 'Crab3']
 
 ## Job counting / Condor monitoring
 baseSiteList = {}  # Site list
@@ -238,6 +244,8 @@ def jobType(jobId, schedd, typeToExtract):
     jType = ''
     if schedd in relvalAgents:
         jType = 'RelVal'
+    if schedd.startswith('crab3'):
+        jType = 'Crab3'
     elif 'Cleanup' in typeToExtract:
         jType = 'Cleanup'
     elif 'LogCollect' in typeToExtract:
@@ -556,6 +564,15 @@ def set_default(obj):
     raise TypeError
 
 
+def get_int(value):
+    """ Return integer from a Classad, which can be either ExprTree or int """
+    try:
+        dummyOut = int(value)
+        return dummyOut
+    except TypeError:
+        return int(value.eval())
+
+
 def main():
     """
     Main algorithm
@@ -570,7 +587,10 @@ def main():
     createSiteList()  # Sites from SSB
     getSitePledge()  # Get pledges by site from SSB
     initJobDictonaries()  # Init running/pending dictionaries
-
+    classAds = {'prodschedd': ['ClusterID', 'ProcId', 'JobStatus', 'CMS_JobType', 'WMAgent_SubTaskName', 'RequestCpus', 'DESIRED_Sites', 'MachineAttrGLIDEIN_CMSSite0'],
+                'crabschedd': ['ClusterID', 'ProcId', 'JobStatus', 'TaskType', 'CRAB_UserHN', 'CRAB_ReqName', 'RequestCpus', 'DESIRED_Sites', 'MATCH_GLIDEIN_CMSSite']}
+    jobKeys = {'prodschedd': {'taskname': 'WMAgent_SubTaskName', 'sitename': 'MachineAttrGLIDEIN_CMSSite0'},
+               'crabschedd': {'taskname': 'CRAB_ReqName', 'sitename': 'MATCH_GLIDEIN_CMSSite'}}
     # Going through each collector and process a job list for each scheduler
     all_collectors = global_pool + tier0_pool
     for collector_name in all_collectors:
@@ -580,7 +600,7 @@ def main():
         schedds = {}
 
         collector = condor.Collector(collector_name)
-        scheddAds = collector.locateAll(condor.DaemonTypes.Schedd)
+        scheddAds = collector.query(condor.AdTypes.Schedd, 'true', ['Name', 'MyAddress', 'ScheddIpAddr', 'CMSGWMS_Type'])
         for ad in scheddAds:
             schedds[ad['Name']] = dict(schedd_type=ad.get('CMSGWMS_Type', ''),
                                        schedd_ad=ad)
@@ -589,7 +609,9 @@ def main():
 
         for schedd_name in schedds:
 
-            if schedds[schedd_name]['schedd_type'] != 'prodschedd':  # Only care about production Schedds
+            schedd_type = schedds[schedd_name]['schedd_type']
+            if schedd_type not in ['prodschedd', 'crabschedd']:
+                print 'Skipping this scheduler: %s as its type is not prodschedd or crabschedd' % schedd_name
                 continue
 
             print "INFO: Getting jobs from collector: %s scheduler: %s" % (collector_name, schedd_name)
@@ -597,64 +619,71 @@ def main():
             schedd_ad = schedds[schedd_name]['schedd_ad']
             schedd = condor.Schedd(schedd_ad)
             try:
-                jobs = schedd.xquery('true', ['ClusterID', 'ProcId', 'JobStatus',
-                                              'CMS_JobType', 'WMAgent_SubTaskName',
-                                              'RequestCpus', 'DESIRED_Sites',
-                                              'MATCH_EXP_JOBGLIDEIN_CMSSite'])
+                jobs = schedd.xquery('true', classAds[schedd_type])
             except RuntimeError:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 print "ERROR: Failed to query schedd %s with:\n" % schedd_name
                 print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            try:
+                for job in jobs:
 
-            for job in jobs:
+                    jobId = str(job['ClusterID']) + '.' + str(job['ProcId'])
+                    status = int(job['JobStatus'])
 
-                jobId = str(job['ClusterID']) + '.' + str(job['ProcId'])
-                status = int(job['JobStatus'])
-
-                if 'WMAgent_SubTaskName' not in job:
-                    print 'I found a job not coming from WMAgent: %s' % jobId
-                    continue
-
-                workflow = job['WMAgent_SubTaskName'].split('/')[1]
-                task = job['WMAgent_SubTaskName'].split('/')[-1]
-                jType = job['CMS_JobType']
-                try:  # it can be an ExprTree
-                    cpus = int(job['RequestCpus'])
-                except TypeError:
-                    cpus = 1
-                siteToExtract = str(job['DESIRED_Sites']).replace(' ', '').split(",")
-
-                if schedd_name in relvalAgents:  # If RelVal job
-                    jType = 'RelVal'
-                elif task == 'Reco':  # If PromptReco job (Otherwise type is Processing)
-                    jType = 'Reco'
-                elif jType not in jobTypes:  # If job type is not standard
-                    jType = jobType(jobId, schedd_name, task)
-
-                siteRunning = job.get('MATCH_EXP_JOBGLIDEIN_CMSSite', '')
-                if siteName(siteRunning):  # If job is currently running
-                    siteToExtract = [siteRunning]
-
-                # Ignore jobs to the T1s from the Tier-0 pool
-                # Avoid double accounting with the global pool
-                if collector_name == tier0_pool[0]:
-                    if not 'T2_CH_CERN_T0' in siteToExtract:
+                    if jobKeys[schedd_type]['taskname'] not in job:
+                        # CRAB has a lot of these which are not tagged and they are task processes.
+                        # They should not be accounted for anything.
+                        #print 'I found a job coming from %s, but it does not have needed classads. JobID %s' % (schedd_type, jobId)
                         continue
-
-                # Ignore jobs to T2_CH_CERN_T0 from the global pool
-                # Avoid double accounting with the Tier-0 pool
-                if collector_name == global_pool[0]:
-                    if 'T2_CH_CERN_T0' in siteToExtract:
+                    workflow = None
+                    task = None
+                    if schedd_type == 'prodschedd':
+                        workflow = job['WMAgent_SubTaskName'].split('/')[1]
+                        task = job['WMAgent_SubTaskName'].split('/')[-1]
+                        jType = job['CMS_JobType']
+                    elif schedd_type == 'crabschedd':
+                        workflow = re.sub('[:]', '', job['CRAB_UserHN'])
+                        task = job['CRAB_ReqName']
+                        jType = 'Crab3'
+                        if job['TaskType'] == 'ROOT':
+                            # Means it is a ROOT task, which is running only on scheduler.
+                            # and it should not be accounted.
+                            continue
+                    else:
+                        print 'How did you got here?! Are you developing something?'
+                        raise
+                    try:  # it can be an ExprTree
+                        cpus = get_int(job['RequestCpus'])
+                    except:
+                        # Catch any except in case something in the future would change in HTCondor or how ExprTree is evaluated.
+                        # It is not correct to assume it is 1 cpu. Skip this job.
+                        print 'Failed to extract RequestCpus from this job %s' % job
                         continue
+                    siteToExtract = [site for site in job['DESIRED_Sites'].replace(' ', '').split(",") if site]
+                    if not siteToExtract:
+                        # There are some cases in CRAB, which it makes to have zombie jobs without any DESIRED_Sites.
+                        # See here: https://github.com/dmwm/CRABServer/issues/4933
+                        # Skip it as it will not be able to run anywhere..
+                        siteToExtract = ['NoSiteDefined']
 
-                if status == 2:  # Running
-                    increaseRunning(siteToExtract[0], schedd_name, jType, cpus)
-                    increaseRunningWorkflow(workflow, siteToExtract[0], 1)
-                elif status == 1:  # Pending
-                    pendingCache.append([schedd_name, jType, cpus, siteToExtract])
-                    increasePendingWorkflow(workflow, siteToExtract, 1)
-                else:  # Ignore jobs in another state
-                    continue
+                    if schedd_name in relvalAgents:  # If RelVal job
+                        jType = 'RelVal'
+                    elif task == 'Reco':  # If PromptReco job (Otherwise type is Processing)
+                        jType = 'Reco'
+                    elif jType not in jobTypes:  # If job type is not standard
+                        jType = jobType(jobId, schedd_name, task)
+
+                    siteRunning = job.get(jobKeys[schedd_type]['sitename'], '')
+                    if siteName(siteRunning) and status == 2:  # If job is currently running
+                        increaseRunning(siteRunning, schedd_name, jType, cpus)
+                        increaseRunningWorkflow(workflow, siteRunning, 1)
+                    elif status == 1:  # Pending
+                        pendingCache.append([schedd_name, jType, cpus, siteToExtract])
+                        increasePendingWorkflow(workflow, siteToExtract, 1)
+                    else:  # Ignore jobs in another state
+                        continue
+            except RuntimeError as er:
+                print 'Received RuntimeError %s. Often means that scheduler is overloaded and not replying' % er
     print "INFO: Querying Schedds for this collector is done"
 
     # Get total running
