@@ -579,7 +579,7 @@ def main():
     """
     starttime = datetime.now()
     print 'INFO: Script started on: ', starttime
-
+    dummyJobCounter = 0
     # get time (date and hour)
     currTime = time.strftime("%Y-%m-%dh%H:%M:%S")
 
@@ -626,62 +626,71 @@ def main():
                 print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
             try:
                 for job in jobs:
+                    try:
+                        jobId = str(job['ClusterID']) + '.' + str(job['ProcId'])
+                        status = int(job['JobStatus'])
 
-                    jobId = str(job['ClusterID']) + '.' + str(job['ProcId'])
-                    status = int(job['JobStatus'])
-
-                    if jobKeys[schedd_type]['taskname'] not in job:
-                        # CRAB has a lot of these which are not tagged and they are task processes.
-                        # They should not be accounted for anything.
-                        #print 'I found a job coming from %s, but it does not have needed classads. JobID %s' % (schedd_type, jobId)
-                        continue
-                    workflow = None
-                    task = None
-                    if schedd_type == 'prodschedd':
-                        workflow = job['WMAgent_SubTaskName'].split('/')[1]
-                        task = job['WMAgent_SubTaskName'].split('/')[-1]
-                        jType = job['CMS_JobType']
-                    elif schedd_type == 'crabschedd':
-                        workflow = re.sub('[:]', '', job['CRAB_UserHN'])
-                        task = job['CRAB_ReqName']
-                        jType = 'Crab3'
-                        if job['TaskType'] == 'ROOT':
-                            # Means it is a ROOT task, which is running only on scheduler.
-                            # and it should not be accounted.
+                        if jobKeys[schedd_type]['taskname'] not in job:
+                            # CRAB has a lot of these which are not tagged and they are task processes.
+                            # They should not be accounted for anything.
+                            #print 'I found a job coming from %s, but it does not have needed classads. JobID %s' % (schedd_type, jobId)
                             continue
-                    else:
-                        print 'How did you got here?! Are you developing something?'
-                        raise
-                    try:  # it can be an ExprTree
-                        cpus = get_int(job['RequestCpus'])
-                    except:
-                        # Catch any except in case something in the future would change in HTCondor or how ExprTree is evaluated.
-                        # It is not correct to assume it is 1 cpu. Skip this job.
-                        print 'Failed to extract RequestCpus from this job %s' % job
-                        continue
-                    siteToExtract = [site for site in job['DESIRED_Sites'].replace(' ', '').split(",") if site]
-                    if not siteToExtract:
-                        # There are some cases in CRAB, which it makes to have zombie jobs without any DESIRED_Sites.
-                        # See here: https://github.com/dmwm/CRABServer/issues/4933
-                        # Skip it as it will not be able to run anywhere..
-                        siteToExtract = ['NoSiteDefined']
+                        workflow = None
+                        task = None
+                        if schedd_type == 'prodschedd':
+                            workflow = job['WMAgent_SubTaskName'].split('/')[1]
+                            task = job['WMAgent_SubTaskName'].split('/')[-1]
+                            jType = job['CMS_JobType']
+                        elif schedd_type == 'crabschedd':
+                            workflow = re.sub('[:]', '', job['CRAB_UserHN'])
+                            task = job['CRAB_ReqName']
+                            jType = 'Crab3'
+                            if job['TaskType'] == 'ROOT':
+                                # Means it is a ROOT task, which is running only on scheduler.
+                                # and it should not be accounted.
+                                continue
+                        else:
+                            print 'How did you got here?! Are you developing something?'
+                            raise
+                        try:  # it can be an ExprTree
+                            cpus = get_int(job['RequestCpus'])
+                        except:
+                            # Catch any except in case something in the future would change in HTCondor or how ExprTree is evaluated.
+                            # It is not correct to assume it is 1 cpu. Skip this job.
+                            print 'Failed to extract RequestCpus from this job %s' % job
+                            continue
+                        siteToExtract = [site for site in job['DESIRED_Sites'].replace(' ', '').split(",") if site]
+                        if not siteToExtract:
+                            # There are some cases in CRAB, which it makes to have zombie jobs without any DESIRED_Sites.
+                            # See here: https://github.com/dmwm/CRABServer/issues/4933
+                            # Skip it as it will not be able to run anywhere..
+                            siteToExtract = ['NoSiteDefined']
 
-                    if schedd_name in relvalAgents:  # If RelVal job
-                        jType = 'RelVal'
-                    elif task == 'Reco':  # If PromptReco job (Otherwise type is Processing)
-                        jType = 'Reco'
-                    elif jType not in jobTypes:  # If job type is not standard
-                        jType = jobType(jobId, schedd_name, task)
+                        if schedd_name in relvalAgents:  # If RelVal job
+                            jType = 'RelVal'
+                        elif task == 'Reco':  # If PromptReco job (Otherwise type is Processing)
+                            jType = 'Reco'
+                        elif jType not in jobTypes:  # If job type is not standard
+                            jType = jobType(jobId, schedd_name, task)
 
-                    siteRunning = job.get(jobKeys[schedd_type]['sitename'], '')
-                    if siteName(siteRunning) and status == 2:  # If job is currently running
-                        increaseRunning(siteRunning, schedd_name, jType, cpus)
-                        increaseRunningWorkflow(workflow, siteRunning, 1)
-                    elif status == 1:  # Pending
-                        pendingCache.append([schedd_name, jType, cpus, siteToExtract])
-                        increasePendingWorkflow(workflow, siteToExtract, 1)
-                    else:  # Ignore jobs in another state
-                        continue
+                        siteRunning = job.get(jobKeys[schedd_type]['sitename'], '')
+                        if siteName(siteRunning) and status == 2:  # If job is currently running
+                            increaseRunning(siteRunning, schedd_name, jType, cpus)
+                            increaseRunningWorkflow(workflow, siteRunning, 1)
+                        elif status == 1:  # Pending
+                            pendingCache.append([schedd_name, jType, cpus, siteToExtract])
+                            increasePendingWorkflow(workflow, siteToExtract, 1)
+                        else:  # Ignore jobs in another state
+                            continue
+                    except KeyError as er:
+                        errMsg = 'Received KeyError %s. Job classads: %s' % (er, job)
+                        print errMsg
+                        if jobId:
+                            jobs_failedTypeLogic[jobId] = dict(scheduler=schedd_name, BaseType=job, err=errMsg)
+                        else:
+                            # This should not happen, but just in case...
+                            jobs_failedTypeLogic[dummyJobCounter] = dict(scheduler=schedd_name, BaseType=job, err=errMsg)
+                            dummyJobCounter += 1
             except RuntimeError as er:
                 print 'Received RuntimeError %s. Often means that scheduler is overloaded and not replying' % er
     print "INFO: Querying Schedds for this collector is done"
