@@ -26,7 +26,7 @@ except ImportError:
 
 # Mailing list for notifications
 mailingSender = 'noreply@cern.ch'
-mailingList = ['dmason@fnal.gov', 'alan.malta@cern.ch', 'katherine.rozo@cern.ch']
+mailingList = {'prodschedd': ['cms-comp-ops-workflow-team@cern.ch'], 'crabschedd': ['justas.balcas@cern.ch']}
 
 ## Job Collectors (Condor pools)
 ## Alan updated to alias on 20/Apr/2016
@@ -53,7 +53,7 @@ baseSitePledges = {}  # Site pledges list
 jobCounting = {}  # Actual job counting
 pendingCache = []  # pending jobs cache
 totalRunningSite = {}  # Total running per site
-jobs_failedTypeLogic = {}  # Jobs that failed the type logic assignment
+jobs_failedTypeLogic = {"prodschedd": {}, 'crabschedd': {}}  # Jobs that failed the type logic assignment
 output_json = "CondorMonitoring.json"  # Output json file name
 ##Counting jobs for Workflows
 overview_workflows = {}
@@ -236,7 +236,7 @@ def addWorkflow(workflow):
     }
 
 
-def jobType(jobId, schedd, typeToExtract):
+def jobType(jobId, schedd, typeToExtract, schedd_type):
     """
     This deduces job type from given info about scheduler and taskName
     Only intended as a backup in case job type from the classAds is not standard
@@ -272,7 +272,7 @@ def jobType(jobId, schedd, typeToExtract):
         jType = 'Processing'
     else:
         jType = 'Processing'
-        jobs_failedTypeLogic[jobId] = dict(scheduler=schedd, BaseType=typeToExtract)
+        jobs_failedTypeLogic[schedd_type][jobId] = dict(scheduler=schedd, BaseType=typeToExtract)
     return jType
 
 
@@ -573,13 +573,22 @@ def get_int(value):
         return int(value.eval())
 
 
+def sendFailedJobsMail(mailingType, failedJobs):
+    body_text = 'A job type is unknown for the JobCounter script\n'
+    body_text += 'Please have a look to the following jobs:\n\n %s' % str(failedJobs)
+    send_mail(mailingSender,
+              mailingList[mailingType],
+              '[Condor Monitoring] Failed task type logic problem',
+              body_text)
+    print 'ERROR: I find jobs that failed the type assignment logic, I will send an email to: %s' % str(mailingList[mailingType])
+
 def main():
     """
     Main algorithm
     """
     starttime = datetime.now()
     print 'INFO: Script started on: ', starttime
-
+    dummyJobCounter = 0
     # get time (date and hour)
     currTime = time.strftime("%Y-%m-%dh%H:%M:%S")
 
@@ -626,62 +635,75 @@ def main():
                 print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
             try:
                 for job in jobs:
+                    try:
+                        jobId = str(job['ClusterID']) + '.' + str(job['ProcId'])
+                        status = int(job['JobStatus'])
 
-                    jobId = str(job['ClusterID']) + '.' + str(job['ProcId'])
-                    status = int(job['JobStatus'])
-
-                    if jobKeys[schedd_type]['taskname'] not in job:
-                        # CRAB has a lot of these which are not tagged and they are task processes.
-                        # They should not be accounted for anything.
-                        #print 'I found a job coming from %s, but it does not have needed classads. JobID %s' % (schedd_type, jobId)
-                        continue
-                    workflow = None
-                    task = None
-                    if schedd_type == 'prodschedd':
-                        workflow = job['WMAgent_SubTaskName'].split('/')[1]
-                        task = job['WMAgent_SubTaskName'].split('/')[-1]
-                        jType = job['CMS_JobType']
-                    elif schedd_type == 'crabschedd':
-                        workflow = re.sub('[:]', '', job['CRAB_UserHN'])
-                        task = job['CRAB_ReqName']
-                        jType = 'Crab3'
-                        if job['TaskType'] == 'ROOT':
-                            # Means it is a ROOT task, which is running only on scheduler.
-                            # and it should not be accounted.
+                        if jobKeys[schedd_type]['taskname'] not in job:
+                            # CRAB has a lot of these which are not tagged and they are task processes.
+                            # They should not be accounted for anything.
+                            #print 'I found a job coming from %s, but it does not have needed classads. JobID %s' % (schedd_type, jobId)
                             continue
-                    else:
-                        print 'How did you got here?! Are you developing something?'
-                        raise
-                    try:  # it can be an ExprTree
-                        cpus = get_int(job['RequestCpus'])
-                    except:
-                        # Catch any except in case something in the future would change in HTCondor or how ExprTree is evaluated.
-                        # It is not correct to assume it is 1 cpu. Skip this job.
-                        print 'Failed to extract RequestCpus from this job %s' % job
-                        continue
-                    siteToExtract = [site for site in job['DESIRED_Sites'].replace(' ', '').split(",") if site]
-                    if not siteToExtract:
-                        # There are some cases in CRAB, which it makes to have zombie jobs without any DESIRED_Sites.
-                        # See here: https://github.com/dmwm/CRABServer/issues/4933
-                        # Skip it as it will not be able to run anywhere..
-                        siteToExtract = ['NoSiteDefined']
+                        workflow = None
+                        task = None
+                        if schedd_type == 'prodschedd':
+                            workflow = job['WMAgent_SubTaskName'].split('/')[1]
+                            task = job['WMAgent_SubTaskName'].split('/')[-1]
+                            jType = job['CMS_JobType']
+                        elif schedd_type == 'crabschedd':
+                            if 'TaskType' not in job:
+                                # Crab is now running dummy jobs on scheduler which is monitoring whole task...
+                                # These jobs do not have TaskType defined.
+                                continue
+                            workflow = re.sub('[:]', '', job['CRAB_UserHN'])
+                            task = job['CRAB_ReqName']
+                            jType = 'Crab3'
+                            if job['TaskType'] == 'ROOT':
+                                # Means it is a ROOT task, which is running only on scheduler.
+                                # and it should not be accounted.
+                                continue
+                        else:
+                            print 'How did you got here?! Are you developing something?'
+                            raise
+                        try:  # it can be an ExprTree
+                            cpus = get_int(job['RequestCpus'])
+                        except:
+                            # Catch any except in case something in the future would change in HTCondor or how ExprTree is evaluated.
+                            # It is not correct to assume it is 1 cpu. Skip this job.
+                            print 'Failed to extract RequestCpus from this job %s' % job
+                            continue
+                        siteToExtract = [site for site in job['DESIRED_Sites'].replace(' ', '').split(",") if site]
+                        if not siteToExtract:
+                            # There are some cases in CRAB, which it makes to have zombie jobs without any DESIRED_Sites.
+                            # See here: https://github.com/dmwm/CRABServer/issues/4933
+                            # Skip it as it will not be able to run anywhere..
+                            siteToExtract = ['NoSiteDefined']
 
-                    if schedd_name in relvalAgents:  # If RelVal job
-                        jType = 'RelVal'
-                    elif task == 'Reco':  # If PromptReco job (Otherwise type is Processing)
-                        jType = 'Reco'
-                    elif jType not in jobTypes:  # If job type is not standard
-                        jType = jobType(jobId, schedd_name, task)
+                        if schedd_name in relvalAgents:  # If RelVal job
+                            jType = 'RelVal'
+                        elif task == 'Reco':  # If PromptReco job (Otherwise type is Processing)
+                            jType = 'Reco'
+                        elif jType not in jobTypes:  # If job type is not standard
+                            jType = jobType(jobId, schedd_name, task, schedd_type)
 
-                    siteRunning = job.get(jobKeys[schedd_type]['sitename'], '')
-                    if siteName(siteRunning) and status == 2:  # If job is currently running
-                        increaseRunning(siteRunning, schedd_name, jType, cpus)
-                        increaseRunningWorkflow(workflow, siteRunning, 1)
-                    elif status == 1:  # Pending
-                        pendingCache.append([schedd_name, jType, cpus, siteToExtract])
-                        increasePendingWorkflow(workflow, siteToExtract, 1)
-                    else:  # Ignore jobs in another state
-                        continue
+                        siteRunning = job.get(jobKeys[schedd_type]['sitename'], '')
+                        if siteName(siteRunning) and status == 2:  # If job is currently running
+                            increaseRunning(siteRunning, schedd_name, jType, cpus)
+                            increaseRunningWorkflow(workflow, siteRunning, 1)
+                        elif status == 1:  # Pending
+                            pendingCache.append([schedd_name, jType, cpus, siteToExtract])
+                            increasePendingWorkflow(workflow, siteToExtract, 1)
+                        else:  # Ignore jobs in another state
+                            continue
+                    except KeyError as er:
+                        errMsg = 'Received KeyError %s. Job classads: %s' % (er, job)
+                        print errMsg
+                        if jobId:
+                            jobs_failedTypeLogic[schedd_type][jobId] = dict(scheduler=schedd_name, BaseType=job, err=errMsg)
+                        else:
+                            # This should not happen, but just in case...
+                            jobs_failedTypeLogic[schedd_type][dummyJobCounter] = dict(scheduler=schedd_name, BaseType=job, err=errMsg)
+                            dummyJobCounter += 1
             except RuntimeError as er:
                 print 'Received RuntimeError %s. Often means that scheduler is overloaded and not replying' % er
     print "INFO: Querying Schedds for this collector is done"
@@ -711,14 +733,9 @@ def main():
     print "INFO: Smart pending job counting is done \n"
 
     # Handling jobs that failed task extraction logic
-    if jobs_failedTypeLogic != {}:
-        body_text = 'A job type is unknown for the JobCounter script\n'
-        body_text += 'Please have a look to the following jobs:\n\n %s' % str(jobs_failedTypeLogic)
-        send_mail(mailingSender,
-                  mailingList,
-                  '[Condor Monitoring] Failed task type logic problem',
-                  body_text)
-        print 'ERROR: I find jobs that failed the type assignment logic, I will send an email to: %s' % str(mailingList)
+    for key, values in jobs_failedTypeLogic.items():
+        if values:
+            sendFailedJobsMail(key, values)
 
     print 'INFO: Creating reports...'
     createReports(currTime)
