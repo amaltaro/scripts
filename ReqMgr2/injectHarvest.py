@@ -79,18 +79,17 @@ def buildRequest(req_cache):
     newSchema = copy(DEFAULT_DICT)
     for k, v in DEFAULT_DICT.iteritems():
         if v != "UPDATEME":
-            pass
+            continue
+        if k == 'RequestString':
+            newSchema[k] = req_cache[k] + '_HARV'
+        elif k == 'InputDataset':
+            newSchema[k] = inputDataset
         else:
-            if k == 'RequestString':
-                newSchema[k] = req_cache[k] + '_HARV'
-            elif k == 'InputDataset':
-                newSchema[k] = inputDataset
+            if isinstance(req_cache[k], dict):
+                # then simply pick the first value, makes no difference in the end
+                newSchema[k] = req_cache[k].values()[0]
             else:
-                if isinstance(req_cache[k], dict):
-                    # then simply pick the first value, makes no difference in the end
-                    newSchema[k] = req_cache[k].values()[0]
-                else:
-                    newSchema[k] = req_cache[k]
+                newSchema[k] = req_cache[k]
 
     return newSchema
 

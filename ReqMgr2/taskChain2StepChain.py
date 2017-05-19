@@ -12,7 +12,7 @@ import httplib
 from copy import copy
 from pprint import pprint
 
-url = "cmsweb.cern.ch"
+url = "cmsweb-testbed.cern.ch"
 reqmgrCouchURL = "https://" + url + "/couchdb/reqmgr_workload_cache"
 
 DEFAULT_DICT = {
@@ -26,7 +26,6 @@ DEFAULT_DICT = {
     "DbsUrl": "https://cmsweb.cern.ch/dbs/prod/global/DBSReader/",
     "EnableHarvesting": "UPDATEME",  # boolean
     "GlobalTag": "UPDATEME",
-    "InputDataset": "UPDATEME",
     "Memory": "UPDATEME",  # integer
     "Multicore": "UPDATEME", # integer
     "PrepID": "UPDATEME",
@@ -50,7 +49,6 @@ def main():
 
     work = retrieveWorkload(sys.argv[1])
     newDict = buildRequest(work)
-    #pprint(newDict)
     print("Creating StepChain workflow for: %s" % sys.argv[1])
     workflow = submitWorkflow(newDict)
     approveRequest(workflow)
@@ -73,14 +71,14 @@ def buildRequest(req_cache):
     # first update top level dict
     for k, v in DEFAULT_DICT.iteritems():
         if v != "UPDATEME":
-            pass
+            continue
         if k == 'RequestString':
             newSchema[k] = req_cache[k] + '_Converted'
         elif k == "PrepID":
             newSchema[k] = 'TEST-' + req_cache[k]
         elif k == "StepChain":
             newSchema[k] = req_cache["TaskChain"]
-        else:
+        elif k in req_cache:
             newSchema[k] = req_cache[k]
 
     # then build the steps
