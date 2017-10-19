@@ -72,7 +72,7 @@ def main():
         if newDict is None:
             # user provided incomplete data (or mistyped something)
             continue
-        print("Creating StoreResults workflow for:\n%s" % pformat(newDict))
+        # print("Creating StoreResults workflow for:\n%s" % pformat(newDict))
         workflow = submitWorkflow(newDict)
         approveRequest(workflow)
     sys.exit(0)
@@ -83,11 +83,10 @@ def migrateDataset(dset, dbsInst):
     Migrate dataset from the user instance to the DBS prod one.
     It returns the origin site name, which should be used for assignment
     """
-    if dbsInst == "phys03":
-        dbsInst = "https://cmsweb.cern.ch/dbs/prod/phys03/DBSReader"
+    dbsInst = "https://cmsweb.cern.ch/dbs/prod/%s/DBSReader" % dbsInst
     migrateArgs = {'migration_url': dbsInst, 'migration_input': dset}
     dbsApi.submitMigration(migrateArgs)
-    print("Dataset %s migrated from %s to prod/global" % (dset, dbsInst))
+    print("Migrating dataset %s from %s to prod/global" % (dset, dbsInst))
 
 
 def buildRequest(userDict):
@@ -102,6 +101,7 @@ def buildRequest(userDict):
 
     newSchema = copy(DEFAULT_DICT)
     newSchema.update(userDict)
+    newSchema['DbsUrl'] = "https://cmsweb.cern.ch/dbs/prod/%s/DBSReader" % newSchema['DbsUrl']
     # Remove spaces from the Physics Group value
     newSchema['PhysicsGroup'] = newSchema['PhysicsGroup'].replace(" ", "")
     # Set PrepID according to the date and time
@@ -128,7 +128,7 @@ def submitWorkflow(schema):
         return None
     data = json.loads(data)
     requestName = data['result'][0]['request']
-    print("  Request %s successfully created." % requestName)
+    print("  Request %s successfully created.\n" % requestName)
     return requestName
 
 
