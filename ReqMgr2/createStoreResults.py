@@ -31,10 +31,8 @@ from pprint import pformat
 
 from dbs.apis.dbsClient import DbsApi
 
-url = "cmsweb-testbed.cern.ch"
-# url = "cmsweb.cern.ch"
-# dbsApi = DbsApi(url='https://%s/dbs/prod/global/DBSMigrate/' % url)
-dbsApi = DbsApi(url='https://%s/dbs/int/global/DBSMigrate/' % url)
+url = "cmsweb.cern.ch"
+dbsApi = DbsApi(url='https://%s/dbs/prod/global/DBSMigrate/' % url)
 
 DEFAULT_DICT = {
     "CMSSWVersion": "UPDATEME",
