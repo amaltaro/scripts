@@ -6,6 +6,16 @@ Pre-requisites:
  1. a valid proxy in your X509_USER_PROXY variable
  2. wmagent env: source /data/srv/wmagent/current/apps/wmagent/etc/profile.d/init.sh
  3. have the correct permissions in SiteDB, otherwise dataset migration won't work
+
+Expected input json file like:
+[{"InputDataset": "/EmbeddingRun2016B/MuTauFinalState-imputSep16DoubleMu_mirror_miniAOD-v2/USER",
+  "DbsUrl": "phys03",
+  "ScramArch": "slc6_amd64_gcc530",
+  "PhysicsGroup": "Tau POG",
+  "CMSSWVersion": "CMSSW_8_0_26_patch1"},
+  {..},
+  {..}]
+
 """
 
 from __future__ import print_function
@@ -23,7 +33,8 @@ from dbs.apis.dbsClient import DbsApi
 
 url = "cmsweb-testbed.cern.ch"
 # url = "cmsweb.cern.ch"
-reqmgrCouchURL = "https://" + url + "/couchdb/reqmgr_workload_cache"
+# dbsApi = DbsApi(url='https://%s/dbs/prod/global/DBSMigrate/' % url)
+dbsApi = DbsApi(url='https://%s/dbs/int/global/DBSMigrate/' % url)
 
 DEFAULT_DICT = {
     "CMSSWVersion": "UPDATEME",
@@ -72,9 +83,8 @@ def migrateDataset(dset, dbsInst):
     Migrate dataset from the user instance to the DBS prod one.
     It returns the origin site name, which should be used for assignment
     """
-    # dbsApi = DbsApi(url='https://%s/dbs/prod/global/DBSMigrate/' % url)
-    dbsApi = DbsApi(url='https://%s/dbs/int/global/DBSMigrate/' % url)
-
+    if dbsInst == "phys03":
+        dbsInst = "https://cmsweb.cern.ch/dbs/prod/phys03/DBSReader"
     migrateArgs = {'migration_url': dbsInst, 'migration_input': dset}
     dbsApi.submitMigration(migrateArgs)
     print("Dataset %s migrated from %s to prod/global" % (dset, dbsInst))
@@ -92,6 +102,8 @@ def buildRequest(userDict):
 
     newSchema = copy(DEFAULT_DICT)
     newSchema.update(userDict)
+    # Remove spaces from the Physics Group value
+    newSchema['PhysicsGroup'] = newSchema['PhysicsGroup'].replace(" ", "")
     # Set PrepID according to the date and time
     newSchema["PrepID"] = "StoreResults-%s" % time.strftime("%d%m%y-%H%M%S")
     # Truncate the ProcessingString, otherwise it can be larger than allowed
