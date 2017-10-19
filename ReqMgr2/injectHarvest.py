@@ -3,13 +3,13 @@ Pre-requisites:
  1. a valid proxy in your X509_USER_PROXY variable
  2. wmagent env: source /data/srv/wmagent/current/apps/wmagent/etc/profile.d/init.sh
 """
+from __future__ import print_function
 
-import sys
-import os
-import json
 import httplib
+import json
+import os
+import sys
 from copy import copy
-from pprint import pprint
 
 url = "cmsweb.cern.ch"
 reqmgrCouchURL = "https://" + url + "/couchdb/reqmgr_workload_cache"
@@ -39,13 +39,13 @@ DEFAULT_DICT = {
 
 def main():
     if len(sys.argv) != 2:
-        print "Usage: python injectHarvest.py WORKFLOW_NAME"
+        print("Usage: python injectHarvest.py WORKFLOW_NAME")
         sys.exit(0)
 
     work = retrieveWorkload(sys.argv[1])
     newDict = buildRequest(work)
     if newDict:
-        #pprint(newDict)
+        # pprint(newDict)
         print("Creating DQMHarvest workflow for: %s" % sys.argv[1])
         workflow = submitWorkflow(newDict)
         approveRequest(workflow)
@@ -99,22 +99,22 @@ def submitWorkflow(schema):
                "Accept": "application/json"}
     encodedParams = json.dumps(schema)
     conn = httplib.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'), key_file=os.getenv('X509_USER_PROXY'))
-    #print "Submitting new workflow..."
+    # print("Submitting new workflow...")
     conn.request("POST", "/reqmgr2/data/request", encodedParams, headers)
     resp = conn.getresponse()
     data = resp.read()
     if resp.status != 200:
-        print "Response status: %s\tResponse reason: %s" % (resp.status, resp.reason)
-        print "Error message: %s" % resp.msg.getheader('X-Error-Detail')
+        print("Response status: %s\tResponse reason: %s" % (resp.status, resp.reason))
+        print("Error message: %s" % resp.msg.getheader('X-Error-Detail'))
         sys.exit(1)
     data = json.loads(data)
     requestName = data['result'][0]['request']
-    print "  Request '%s' successfully created." % requestName
+    print("  Request '%s' successfully created." % requestName)
     return requestName
 
 
 def approveRequest(workflow):
-    #print "Approving request..."
+    # print("Approving request...")
     encodedParams = json.dumps({"RequestStatus": "assignment-approved"})
     headers = {"Content-type": "application/json",
                "Accept": "application/json"}
@@ -124,12 +124,12 @@ def approveRequest(workflow):
     resp = conn.getresponse()
     data = resp.read()
     if resp.status != 200:
-        print "Response status: %s\tResponse reason: %s" % (resp.status, resp.reason)
+        print("Response status: %s\tResponse reason: %s" % (resp.status, resp.reason))
         if hasattr(resp.msg, "x-error-detail"):
-            print "Error message: %s" % resp.msg["x-error-detail"]
+            print("Error message: %s" % resp.msg["x-error-detail"])
             sys.exit(2)
     conn.close()
-    #print "  Request successfully approved!"
+    # print("  Request successfully approved!")
     return
 
 
