@@ -1,10 +1,13 @@
 # /bin/python
+from __future__ import print_function
+import json
+import sys
+import urllib
+import urllib2
+import httplib
+from pprint import pformat
 from optparse import OptionParser
-import urllib, urllib2, httplib
 from urllib2 import HTTPError, URLError
-from urlparse import urljoin
-import json, sys
-import pprint
 
 main_url        = "https://cmsweb.cern.ch"
 phedex_url      = main_url + "/phedex/datasvc/json/prod/"
@@ -38,12 +41,10 @@ def get_content(url, cert, params=None):
             response = opener.open(url)
             output = response.read()
     except HTTPError as e:
-        print 'The server couldn\'t fulfill the request'
-        print 'Error code: ', e.code
+        print('The server couldn\'t fulfill the request. Erro code: ',  e.code)
         sys.exit(1)
     except URLError as e:
-        print 'Failed to reach server'
-        print 'Reason: ', e.reason
+        print('Failed to reach server. Reason:', e.reason)
         sys.exit(1)
     return output
 
@@ -52,7 +53,6 @@ def phedex_info(dataset, cert):
     Query blockreplicas PhEDEx API to retrieve detailed information
     for a specific dataset
     """
-    phedex_summary= {}
     api_url = phedex_url + "blockreplicas" + "?" + urllib.urlencode([('dataset', dataset)])
     phedex_summary = json.loads(get_content(api_url, cert))
     return phedex_summary
@@ -98,28 +98,41 @@ def main(argv=None):
         dataset = '/'+lfnAux[4]+'/'+lfnAux[3]+'-'+lfnAux[6]+'/'+lfnAux[5]
     cert = options.proxy
 
-    print "Dataset: %s" % dataset
+    print("Dataset: %s" % dataset)
 
     phedex_out = phedex_info(dataset, cert)
     dbs_out = dbs_info(dataset, cert)
     phedex_files = 0
+    phedex_blocks = {}
     for item in phedex_out["phedex"]["block"]:
         phedex_files += item['files']
+        phedex_blocks.setdefault(item['name'], item['files'])
 
     dbs_files = dbs_out['blocksummaries'][0]['num_file']
-    print "Phedex file count : ", phedex_files
-    print "DBS file count    : ", dbs_files
-
+    dbs_blocks = {}
     dbs_file_valid = 0
     dbs_file_invalid = 0
     for item in dbs_out['files']:
+        dbs_blocks.setdefault(item['block_name'], 0)
+        dbs_blocks[item['block_name']] += 1
         if item['is_file_valid']:
             dbs_file_valid += 1
         else:
             dbs_file_invalid += 1
-    print " - valid files    : ", dbs_file_valid
-    print " - invalid files  : ", dbs_file_invalid
-    print " - valid+invalid  : ", (dbs_file_valid + dbs_file_invalid)
+
+    print("Phedex file count : ", phedex_files)
+    print("DBS file count    : ", dbs_files)
+    print(" - valid files    : ", dbs_file_valid)
+    print(" - invalid files  : ", dbs_file_invalid)
+    print(" - valid+invalid  : ", (dbs_file_valid + dbs_file_invalid))
+    print("Blocks in PhEDEx but not in DBS: ", set(phedex_blocks.keys()) - set(dbs_blocks.keys()))
+    print("Blocks in DBS but not in PhEDEx: ", set(dbs_blocks.keys()) - set(phedex_blocks.keys()))
+
+    for blockname in phedex_blocks:
+        if phedex_blocks[blockname] != dbs_blocks.get(blockname):
+            print("Block with file mismatch: %s" % blockname)
+            print("PhEDEx: %d\t\tDBS: %d" % (phedex_blocks[blockname], dbs_blocks[blockname]))
+
 
 if __name__ == "__main__":
     sys.exit(main())
