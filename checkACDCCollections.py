@@ -4,6 +4,7 @@
 Retrieve data from the ACDC server and get the amount
 of failures for a given workflow in a per-task basis.
 """
+from __future__ import print_function
 
 import sys
 from optparse import OptionParser
@@ -30,20 +31,46 @@ def main():
     svc = Database(database, couchUrl)
 
     result = svc.loadView("ACDC", "byCollectionName", {'key': options.wf, 'include_docs': True, 'reduce': False})
-    print "Found %i failures/rows in total." % len(result["rows"])
+    print("Found %i failures/rows in total." % len(result["rows"]))
     for entry in result["rows"]:
         fsetName = entry['doc']['fileset_name']
-        failures.setdefault(fsetName, {'jobs': 0, 'files': 0, 'filesAtCERN': 0})
+        failures.setdefault(fsetName, {'jobs': 0, 'files': 0, 'lumis': 0})
 
         failures[fsetName]['jobs'] += 1
         failures[fsetName]['files'] += len(entry['doc']['files'])
+        for fname in entry['doc']['files']:
+            for runLumi in entry['doc']['files'][fname]['runs']:
+                failures[fsetName]['lumis'] += len(runLumi['lumis'])
 
-        for f, v in entry['doc']['files'].iteritems():
-            if "T2_CH_CERN" in v['locations']:
-                failures[fsetName]['filesAtCERN'] += 1
-
+    print("Summary of failures is as follows:")
     pprint(failures)
-    print "\nDone!"
+
+    print("\nNow printing duplicate files + run + lumis per fileset")
+    printDups(result["rows"])
+    print("\nDone!")
+
+
+def printDups(chunkFiles):
+    """
+    Same logic as mergeFilesInfo from WMCore
+    """
+    mergedFiles = {}
+
+    # Merge ACDC docs without any real input data (aka MCFakeFile)
+    for doc in chunkFiles:
+        for fname, values in doc['doc']['files'].iteritems():
+            if fname not in mergedFiles:
+                mergedFiles[fname] = {}
+                for runLumi in values['runs']:
+                    runNum = str(runLumi['run_number'])
+                    mergedFiles[fname][runNum] = runLumi['lumis']
+            else:
+                for runLumi in values['runs']:
+                    runNum = str(runLumi['run_number'])
+                    firstLumi = runLumi['lumis'][0]
+                    if runNum in mergedFiles[fname] and firstLumi in mergedFiles[fname][runNum]:
+                        print("Duplicate for %s" % fname)
+                        print(values['runs'])
 
 
 if __name__ == "__main__":
