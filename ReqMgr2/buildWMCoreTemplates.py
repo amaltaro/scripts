@@ -8,7 +8,38 @@ import sys
 import os
 import random
 import json
+import re
 import httplib
+from dbs.apis.dbsClient import DbsApi
+from pprint import pformat
+
+def migrateDataset(datasets):
+    """
+    Migrate dataset from the production to the integration DBS database.
+    It returns the origin site name, which should be used for assignment
+    """
+    dbsApi = DbsApi(url='https://cmsweb-testbed.cern.ch/dbs/int/global/DBSMigrate/')
+    dbsInst = "https://cmsweb.cern.ch/dbs/prod/global/DBSReader"
+
+    datasets = list(set(datasets))
+    for dset in datasets:
+        migrateArgs = {'migration_url': dbsInst, 'migration_input': dset}
+        dbsApi.submitMigration(migrateArgs)
+        print("Migrating dataset %s to int/global DBS" % dset)
+
+
+def findDsets(reqDict):
+    """
+    Find any datasets present in the request configuration.
+    """
+    dsets = []
+    for k, v in reqDict.items():
+        if k in ('MCPileup', 'DataPileup', 'InputDataset'):
+            dsets.append(v)
+        elif re.match(r"Task[0-9]$", k) or re.match(r"Step[0-9]$", k):
+            # it's either TaskChain or Stepchain, check the inner dict then
+            dsets.extend(findDsets(v))
+    return dsets
 
 
 def getRequestDict(workflow):
@@ -39,15 +70,17 @@ def updateRequestDict(reqDict):
                       'Team', 'Teams', 'TotalEstimatedJobs', 'TotalInputEvents', 'TotalInputFiles', 'TotalInputLumis', 'TotalTime',
                       'TrustPUSitelists', 'TrustSitelists', 'UnmergedLFNBase', '_id', 'inputMode', 'timeStamp',
                       'DN', 'DQMHarvestUnit', 'DashboardHost', 'DashboardPort', 'EnableNewStageout', 'FirstEvent',
-                      'FirstLumi', 'PeriodicHarvestInterval', 'RobustMerge', 'RunNumber', 'ValidStatus', 'VoGroup',
-                      'VoRole', 'dashboardActivity', 'mergedLFNBase', 'unmergedLFNBase', 'MaxWaitTime']
+                      'FirstLumi', 'PeriodicHarvestInterval', 'RobustMerge', 'RunNumber', 'ValidStatus', 'VoGroup', 'PriorityTransition',
+                      'VoRole', 'dashboardActivity', 'mergedLFNBase', 'unmergedLFNBase', 'MaxWaitTime', 'OutputModulesLFNBases', 'Override',
+                      'ChainParentageMap', 'OpenRunningTimeout', 'Requestor']
 
 
     createDict = {}
+    #print(pformat(reqDict))
     for key, value in reqDict.items():
-        if key in paramBlacklist or value in ([], {}, None, ''):
+        if key in paramBlacklist:
             continue
-        elif key == 'OpenRunningTimeout':
+        elif value in ([], {}, None, ''):
             continue
         elif key == 'Campaign':
             createDict[key] = "Campaign-OVERRIDE-ME"
@@ -67,11 +100,11 @@ def updateRequestDict(reqDict):
             createDict[key] = value
 
     createDict['Comments'] = ""
-    createDict['Requestor'] = "amaltaro"
     newSchema = {'createRequest': createDict}
     if createDict['RequestType'] in ['TaskChain', 'StepChain']:
         handleTasksSteps(createDict)
     newSchema['assignRequest'] = handleAssignmentParams(createDict)
+    newSchema['assignRequest']['Override'] = {"eos-lfn-prefix": "root://eoscms.cern.ch//eos/cms/store/logs/prod/recent/TESTBED"}
 
     return newSchema
 
@@ -79,20 +112,25 @@ def handleTasksSteps(reqDict):
     """
     Remove/overwrite some values
     """
-    if 'TaskChain' in reqDict:
-      name = 'Task'
-      number = reqDict['TaskChain']
-    else:
-      name = 'Step'
-      number = reqDict['StepChain']
+    number = reqDict.get('TaskChain', reqDict.get('StepChain'))
+    name = 'Task' if reqDict['RequestType'] == 'TaskChain' else 'Step'
+
+    # to avoid mismatch of key names, let's set it to a base string
+    reqDict['AcquisitionEra'] = "DEFAULT_AcqEra"
+    reqDict['ProcessingString'] = "DEFAULT_ProcStr"
     for i in range(1, number + 1):
         thisDict = name + str(i)
         for k in reqDict[thisDict].keys():
-            # remove empty stuff
-            if not reqDict[thisDict][k]:
+            # remove None and empty stuff
+            if reqDict[thisDict][k] in ([], {}, None, ''):
                 reqDict[thisDict].pop(k)
             elif k == 'ProcessingString':
                 reqDict[thisDict][k] = "%s%s_WMCore_TEST" % (name, i)
+            # this info is used for assignment, so we better make sure there are no dashes in here
+            elif k in ('TaskName', 'StepName'):
+                reqDict[thisDict][k] = reqDict[thisDict][k].replace('-', '_')
+            elif k in ('InputTask', 'InputStep'):
+                reqDict[thisDict][k] = reqDict[thisDict][k].replace('-', '_')
 
 
 def handleAssignmentParams(reqDict):
@@ -107,8 +145,6 @@ def handleAssignmentParams(reqDict):
                   "ProcessingVersion": 19,
                   "MergedLFNBase": "/store/backfill/1",
                   "UnmergedLFNBase": "/store/unmerged",
-                  "MaxRSS": reqDict.pop('MaxRSS'),
-                  "MaxVSize": 40000000,
                   "SoftTimeout": 129600,
                   "GracePeriod": 300,
                   "SiteBlacklist": [],
@@ -157,6 +193,12 @@ def main():
     reqName = sys.argv[1]
     origDict = getRequestDict(reqName)
     newDict = updateRequestDict(origDict)
+    dsets = findDsets(newDict['createRequest'])
+    if dsets:
+        try:
+            migrateDataset(dsets)
+        except Exception as ex:
+            print("Error migrating dataset between DBS instances. Details: %s" % str(ex))
     createJsonTemplate(newDict)
 
 
