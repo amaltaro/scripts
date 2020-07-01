@@ -69,14 +69,20 @@ def updateRequestDict(reqDict):
                       'RequestorDN', 'SiteWhitelist', 'SoftTimeout', 'SoftwareVersions', 'SubscriptionPriority',
                       'Team', 'Teams', 'TotalEstimatedJobs', 'TotalInputEvents', 'TotalInputFiles', 'TotalInputLumis', 'TotalTime',
                       'TrustPUSitelists', 'TrustSitelists', 'UnmergedLFNBase', '_id', 'inputMode', 'timeStamp',
-                      'DN', 'DashboardHost', 'DashboardPort', 'EnableNewStageout', 'FirstEvent',
+                      'DN', 'DQMHarvestUnit', 'DashboardHost', 'DashboardPort', 'EnableNewStageout', 'FirstEvent',
                       'FirstLumi', 'PeriodicHarvestInterval', 'RobustMerge', 'RunNumber', 'ValidStatus', 'VoGroup', 'PriorityTransition',
                       'VoRole', 'dashboardActivity', 'mergedLFNBase', 'unmergedLFNBase', 'MaxWaitTime', 'OutputModulesLFNBases', 'Override',
-                      'ChainParentageMap', 'OpenRunningTimeout', 'Requestor']
+                      'ChainParentageMap', 'OpenRunningTimeout', 'Requestor', 'ParentageResolved']
 
 
     createDict = {}
     #print(pformat(reqDict))
+    createDict['Comments'] = {"WorkFlowDesc": "", "CheckList": ""}
+    if reqDict.get("EnableHarvesting", False):
+        createDict['EnableHarvesting'] = reqDict['EnableHarvesting']
+        createDict['DQMHarvestUnit'] = reqDict['DQMHarvestUnit']
+        createDict['DQMUploadUrl'] = "https://cmsweb-testbed.cern.ch/dqm/dev"
+
     for key, value in reqDict.items():
         if key in paramBlacklist:
             continue
@@ -86,8 +92,6 @@ def updateRequestDict(reqDict):
             createDict[key] = "Campaign-OVERRIDE-ME"
         elif key == 'RequestString':
             createDict[key] = "RequestString-OVERRIDE-ME"
-        elif key == 'DQMUploadUrl':
-            createDict[key] = "https://cmsweb-testbed.cern.ch/dqm/dev"
         elif key == 'DbsUrl':
             createDict[key] = "https://cmsweb-testbed.cern.ch/dbs/int/global/DBSReader/"
         elif key == 'RequestPriority':
@@ -99,7 +103,6 @@ def updateRequestDict(reqDict):
         else:
             createDict[key] = value
 
-    createDict['Comments'] = {"WorkFlowDesc": "", "CheckList": ""}
     newSchema = {'createRequest': createDict}
     if createDict['RequestType'] in ['TaskChain', 'StepChain']:
         handleTasksSteps(createDict)
