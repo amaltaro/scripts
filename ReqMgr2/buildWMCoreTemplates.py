@@ -69,7 +69,7 @@ def updateRequestDict(reqDict):
                       'RequestorDN', 'SiteWhitelist', 'SoftTimeout', 'SoftwareVersions', 'SubscriptionPriority',
                       'Team', 'Teams', 'TotalEstimatedJobs', 'TotalInputEvents', 'TotalInputFiles', 'TotalInputLumis', 'TotalTime',
                       'TrustPUSitelists', 'TrustSitelists', 'UnmergedLFNBase', '_id', 'inputMode', 'timeStamp',
-                      'DN', 'DQMHarvestUnit', 'DashboardHost', 'DashboardPort', 'EnableNewStageout', 'FirstEvent',
+                      'DN', 'DashboardHost', 'DashboardPort', 'EnableNewStageout', 'FirstEvent',
                       'FirstLumi', 'PeriodicHarvestInterval', 'RobustMerge', 'RunNumber', 'ValidStatus', 'VoGroup', 'PriorityTransition',
                       'VoRole', 'dashboardActivity', 'mergedLFNBase', 'unmergedLFNBase', 'MaxWaitTime', 'OutputModulesLFNBases', 'Override',
                       'ChainParentageMap', 'OpenRunningTimeout', 'Requestor']
@@ -99,7 +99,7 @@ def updateRequestDict(reqDict):
         else:
             createDict[key] = value
 
-    createDict['Comments'] = ""
+    createDict['Comments'] = {"WorkFlowDesc": "", "CheckList": ""}
     newSchema = {'createRequest': createDict}
     if createDict['RequestType'] in ['TaskChain', 'StepChain']:
         handleTasksSteps(createDict)
