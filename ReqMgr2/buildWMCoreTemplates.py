@@ -2,14 +2,14 @@
 """
 Run it from vocms049 with your proxy in the environment
 """
-from __future__ import print_function
+
 
 import sys
 import os
 import random
 import json
 import re
-import httplib
+import http.client
 from dbs.apis.dbsClient import DbsApi
 from pprint import pformat
 
@@ -33,7 +33,7 @@ def findDsets(reqDict):
     Find any datasets present in the request configuration.
     """
     dsets = []
-    for k, v in reqDict.items():
+    for k, v in list(reqDict.items()):
         if k in ('MCPileup', 'DataPileup', 'InputDataset'):
             dsets.append(v)
         elif re.match(r"Task[0-9]$", k) or re.match(r"Step[0-9]$", k):
@@ -47,7 +47,7 @@ def getRequestDict(workflow):
     url = "cmsweb.cern.ch"
     headers = {"Content-type": "application/json",
                "Accept": "application/json"}
-    conn = httplib.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'),
+    conn = http.client.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'),
                                    key_file=os.getenv('X509_USER_PROXY'))
     urn = "/reqmgr2/data/request/%s" % workflow
     conn.request("GET", urn, headers=headers)
@@ -84,7 +84,7 @@ def updateRequestDict(reqDict):
         createDict['DQMHarvestUnit'] = reqDict['DQMHarvestUnit']
         createDict['DQMUploadUrl'] = "https://cmsweb-testbed.cern.ch/dqm/dev"
 
-    for key, value in reqDict.items():
+    for key, value in list(reqDict.items()):
         if key in paramBlacklist:
             continue
         elif value in ([], {}, None, ''):
@@ -126,7 +126,7 @@ def handleTasksSteps(reqDict):
     reqDict['ProcessingString'] = "DEFAULT_ProcStr"
     for i in range(1, number + 1):
         thisDict = name + str(i)
-        for k in reqDict[thisDict].keys():
+        for k in list(reqDict[thisDict].keys()):
             # remove None and empty stuff
             if reqDict[thisDict][k] in ([], {}, None, ''):
                 reqDict[thisDict].pop(k)
