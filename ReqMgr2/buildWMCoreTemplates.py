@@ -43,6 +43,7 @@ def findDsets(reqDict):
 
 
 def getRequestDict(workflow):
+    #url = "cmsweb-testbed.cern.ch"
     url = "cmsweb.cern.ch"
     headers = {"Content-type": "application/json",
                "Accept": "application/json"}
@@ -105,8 +106,8 @@ def updateRequestDict(reqDict):
 
     newSchema = {'createRequest': createDict}
     if createDict['RequestType'] in ['TaskChain', 'StepChain']:
-        handleTasksSteps(createDict)
-    newSchema['assignRequest'] = handleAssignmentParams(createDict)
+        chainNames = handleTasksSteps(createDict)
+    newSchema['assignRequest'] = handleAssignmentParams(createDict, chainNames)
     newSchema['assignRequest']['Override'] = {"eos-lfn-prefix": "root://eoscms.cern.ch//eos/cms/store/logs/prod/recent/TESTBED"}
 
     return newSchema
@@ -114,7 +115,9 @@ def updateRequestDict(reqDict):
 def handleTasksSteps(reqDict):
     """
     Remove/overwrite some values
+    :return: a list of task or step names
     """
+    chainNames = []
     number = reqDict.get('TaskChain', reqDict.get('StepChain'))
     name = 'Task' if reqDict['RequestType'] == 'TaskChain' else 'Step'
 
@@ -132,13 +135,16 @@ def handleTasksSteps(reqDict):
             # this info is used for assignment, so we better make sure there are no dashes in here
             elif k in ('TaskName', 'StepName'):
                 reqDict[thisDict][k] = reqDict[thisDict][k].replace('-', '_')
+                chainNames.append(reqDict[thisDict][k].replace('-', '_'))
             elif k in ('InputTask', 'InputStep'):
                 reqDict[thisDict][k] = reqDict[thisDict][k].replace('-', '_')
+    return chainNames
 
 
-def handleAssignmentParams(reqDict):
+def handleAssignmentParams(reqDict, chainNames):
     """
     Add some predefined assignment parameters to the template
+    :param chainNames: a list of task or step names (or empty for ReReco)
     """
     assignDict = {"SiteWhitelist": ["SiteWhitelist-OVERRIDE-ME"],
                   "Team": "Team-OVERRIDE-ME",
@@ -167,11 +173,12 @@ def handleAssignmentParams(reqDict):
                   #                                "BlockCloseMaxSize": 5000000000000
                  }
 
-    for k in ['AcquisitionEra', 'ProcessingString']:
-        if isinstance(reqDict[k], dict):
+    if chainNames:
+        # then it's either a TaskChain or a StepChain workflow. Tweak assignment
+        for k in ['AcquisitionEra', 'ProcessingString']:
             assignDict[k] = {}
-            for task, _ in reqDict[k].iteritems():
-                assignDict[k][task] = k + "-OVERRIDE-ME"
+            for name in chainNames:
+                assignDict[k][name] = k + "-OVERRIDE-ME"
 
     return assignDict
 
