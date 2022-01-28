@@ -3,15 +3,15 @@
 Run it from vocms049 with your proxy in the environment
 """
 
-
-import sys
+import http.client
+import json
 import os
 import random
-import json
 import re
-import http.client
+import sys
 from dbs.apis.dbsClient import DbsApi
 from pprint import pformat
+
 
 def migrateDataset(datasets):
     """
@@ -24,8 +24,16 @@ def migrateDataset(datasets):
     datasets = list(set(datasets))
     for dset in datasets:
         migrateArgs = {'migration_url': dbsInst, 'migration_input': dset}
-        dbsApi.submitMigration(migrateArgs)
-        print("Migrating dataset %s to int/global DBS" % dset)
+        try:
+            dbsApi.submitMigration(migrateArgs)
+        except Exception as exc:
+            errorMsg = str(getattr(exc, "body", str(exc)))
+            if "already in destination" in errorMsg:
+                print("Dataset {} is already available in int/global DBS".format(dset))
+            else:
+                raise
+        else:
+            print("Migrating dataset %s to int/global DBS" % dset)
 
 
 def findDsets(reqDict):
@@ -43,12 +51,12 @@ def findDsets(reqDict):
 
 
 def getRequestDict(workflow):
-    #url = "cmsweb-testbed.cern.ch"
+    # url = "cmsweb-testbed.cern.ch"
     url = "cmsweb.cern.ch"
     headers = {"Content-type": "application/json",
                "Accept": "application/json"}
     conn = http.client.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'),
-                                   key_file=os.getenv('X509_USER_PROXY'))
+                                       key_file=os.getenv('X509_USER_PROXY'))
     urn = "/reqmgr2/data/request/%s" % workflow
     conn.request("GET", urn, headers=headers)
     r2 = conn.getresponse()
@@ -61,23 +69,29 @@ def updateRequestDict(reqDict):
     Remove some keys from the original dict and build the
     structure expected by the reqmgr client script.
     """
-    paramBlacklist = ['AllowOpportunistic', 'AutoApproveSubscriptionSites', 'BlockCloseMaxEvents', 'BlockCloseMaxFiles', 'BlockCloseMaxSize',
-                      'BlockCloseMaxWaitTime', 'CouchURL', 'CouchWorkloadDBName', 'CustodialGroup', 'CustodialSites', 'CustodialSubType',
-                      'Dashboard', 'DeleteFromSource', 'GracePeriod', 'Group', 'HardTimeout', 'InitialPriority', 'InputDatasets',
+    paramBlacklist = ['AllowOpportunistic', 'AutoApproveSubscriptionSites', 'BlockCloseMaxEvents', 'BlockCloseMaxFiles',
+                      'BlockCloseMaxSize',
+                      'BlockCloseMaxWaitTime', 'CouchURL', 'CouchWorkloadDBName', 'CustodialGroup', 'CustodialSites',
+                      'CustodialSubType',
+                      'Dashboard', 'DeleteFromSource', 'GracePeriod', 'Group', 'HardTimeout', 'InitialPriority',
+                      'InputDatasets',
                       'MaxMergeEvents', 'MaxMergeSize', 'MaxVSize', 'MergedLFNBase', 'MinMergeSize',
-                      'NonCustodialGroup', 'NonCustodialSites', 'NonCustodialSubType', 'OutputDatasets', 'ReqMgr2Only', 'RequestDate',
+                      'NonCustodialGroup', 'NonCustodialSites', 'NonCustodialSubType', 'OutputDatasets', 'ReqMgr2Only',
+                      'RequestDate',
                       'RequestName', 'RequestSizeFiles', 'RequestStatus', 'RequestTransition', 'RequestWorkflow',
                       'RequestorDN', 'SiteWhitelist', 'SoftTimeout', 'SoftwareVersions', 'SubscriptionPriority',
-                      'Team', 'Teams', 'TotalEstimatedJobs', 'TotalInputEvents', 'TotalInputFiles', 'TotalInputLumis', 'TotalTime',
+                      'Team', 'Teams', 'TotalEstimatedJobs', 'TotalInputEvents', 'TotalInputFiles', 'TotalInputLumis',
+                      'TotalTime',
                       'TrustPUSitelists', 'TrustSitelists', 'UnmergedLFNBase', '_id', 'inputMode', 'timeStamp',
                       'DN', 'DQMHarvestUnit', 'DashboardHost', 'DashboardPort', 'EnableNewStageout', 'FirstEvent',
-                      'FirstLumi', 'PeriodicHarvestInterval', 'RobustMerge', 'RunNumber', 'ValidStatus', 'VoGroup', 'PriorityTransition',
-                      'VoRole', 'dashboardActivity', 'mergedLFNBase', 'unmergedLFNBase', 'MaxWaitTime', 'OutputModulesLFNBases', 'Override',
+                      'FirstLumi', 'PeriodicHarvestInterval', 'RobustMerge', 'RunNumber', 'ValidStatus', 'VoGroup',
+                      'PriorityTransition',
+                      'VoRole', 'dashboardActivity', 'mergedLFNBase', 'unmergedLFNBase', 'MaxWaitTime',
+                      'OutputModulesLFNBases', 'Override',
                       'ChainParentageMap', 'OpenRunningTimeout', 'Requestor', 'ParentageResolved']
 
-
     createDict = {}
-    #print(pformat(reqDict))
+    # print(pformat(reqDict))
     createDict['Comments'] = {"WorkFlowDesc": "", "CheckList": ""}
     if reqDict.get("EnableHarvesting", False):
         createDict['EnableHarvesting'] = reqDict['EnableHarvesting']
@@ -108,9 +122,11 @@ def updateRequestDict(reqDict):
     if createDict['RequestType'] in ['TaskChain', 'StepChain']:
         chainNames = handleTasksSteps(createDict)
     newSchema['assignRequest'] = handleAssignmentParams(createDict, chainNames)
-    newSchema['assignRequest']['Override'] = {"eos-lfn-prefix": "root://eoscms.cern.ch//eos/cms/store/logs/prod/recent/TESTBED"}
+    newSchema['assignRequest']['Override'] = {
+        "eos-lfn-prefix": "root://eoscms.cern.ch//eos/cms/store/logs/prod/recent/TESTBED"}
 
     return newSchema
+
 
 def handleTasksSteps(reqDict):
     """
@@ -171,7 +187,7 @@ def handleAssignmentParams(reqDict, chainNames):
                   #                                "BlockCloseMaxFiles": 500,
                   #                                "BlockCloseMaxEvents": 200000000,
                   #                                "BlockCloseMaxSize": 5000000000000
-                 }
+                  }
 
     if chainNames:
         # then it's either a TaskChain or a StepChain workflow. Tweak assignment
@@ -208,7 +224,8 @@ def main():
         try:
             migrateDataset(dsets)
         except Exception as ex:
-            print("Error migrating dataset between DBS instances. Details: %s" % str(ex))
+            errorMsg = str(getattr(ex, "body", str(ex)))
+            print("Error migrating dataset between DBS instances. Details: {}".format(errorMsg))
     createJsonTemplate(newDict)
 
 
