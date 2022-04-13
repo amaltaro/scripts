@@ -119,6 +119,7 @@ def updateRequestDict(reqDict):
             createDict[key] = value
 
     newSchema = {'createRequest': createDict}
+    chainNames = None
     if createDict['RequestType'] in ['TaskChain', 'StepChain']:
         chainNames = handleTasksSteps(createDict)
     newSchema['assignRequest'] = handleAssignmentParams(createDict, chainNames)
