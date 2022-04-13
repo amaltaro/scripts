@@ -88,7 +88,7 @@ def updateRequestDict(reqDict):
                       'PriorityTransition',
                       'VoRole', 'dashboardActivity', 'mergedLFNBase', 'unmergedLFNBase', 'MaxWaitTime',
                       'OutputModulesLFNBases', 'Override',
-                      'ChainParentageMap', 'OpenRunningTimeout', 'Requestor', 'ParentageResolved']
+                      'ChainParentageMap', 'OpenRunningTimeout', 'Requestor', 'ParentageResolved', 'DatasetLifetime']
 
     createDict = {}
     # print(pformat(reqDict))
