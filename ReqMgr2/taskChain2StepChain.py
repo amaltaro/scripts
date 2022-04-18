@@ -5,12 +5,11 @@ Pre-requisites:
  1. a valid proxy in your X509_USER_PROXY variable
 """
 
-import sys
-import os
+import http.client
 import json
-import httplib
+import os
+import sys
 from copy import copy
-from pprint import pprint
 
 url = "cmsweb-testbed.cern.ch"
 reqmgrCouchURL = "https://" + url + "/couchdb/reqmgr_workload_cache"
@@ -27,7 +26,7 @@ DEFAULT_DICT = {
     "EnableHarvesting": "UPDATEME",  # boolean
     "GlobalTag": "UPDATEME",
     "Memory": "UPDATEME",  # integer
-    "Multicore": "UPDATEME", # integer
+    "Multicore": "UPDATEME",  # integer
     "PrepID": "UPDATEME",
     "PrimaryDataset": "UPDATEME",
     "ProcessingString": "UPDATEME",
@@ -41,10 +40,9 @@ DEFAULT_DICT = {
     "TimePerEvent": "UPDATEME"}
 
 
-
 def main():
     if len(sys.argv) != 2:
-        print "Usage: python taskChain2StepChain.py WORKFLOW_NAME"
+        print("Usage: python taskChain2StepChain.py WORKFLOW_NAME")
         sys.exit(0)
 
     work = retrieveWorkload(sys.argv[1])
@@ -58,7 +56,8 @@ def main():
 def retrieveWorkload(workflowName):
     headers = {"Content-type": "application/json",
                "Accept": "application/json"}
-    conn = httplib.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'), key_file=os.getenv('X509_USER_PROXY'))
+    conn = http.client.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'),
+                                       key_file=os.getenv('X509_USER_PROXY'))
     urn = "/reqmgr2/data/request/%s" % workflowName
     conn.request("GET", urn, headers=headers)
     r2 = conn.getresponse()
@@ -69,7 +68,7 @@ def retrieveWorkload(workflowName):
 def buildRequest(req_cache):
     newSchema = copy(DEFAULT_DICT)
     # first update top level dict
-    for k, v in DEFAULT_DICT.iteritems():
+    for k, v in DEFAULT_DICT.items():
         if v != "UPDATEME":
             continue
         if k == 'RequestString':
@@ -106,39 +105,39 @@ def submitWorkflow(schema):
     headers = {"Content-type": "application/json",
                "Accept": "application/json"}
     encodedParams = json.dumps(schema)
-    conn = httplib.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'), key_file=os.getenv('X509_USER_PROXY'))
-    #print "Submitting new workflow..."
+    conn = http.client.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'),
+                                       key_file=os.getenv('X509_USER_PROXY'))
+    # print "Submitting new workflow..."
     conn.request("POST", "/reqmgr2/data/request", encodedParams, headers)
     resp = conn.getresponse()
     data = resp.read()
     if resp.status != 200:
-        print "Response status: %s\tResponse reason: %s" % (resp.status, resp.reason)
-        print "Error message: %s" % resp.msg.getheader('X-Error-Detail')
+        print("Response status: {}\tResponse reason: {}" % (resp.status, resp.reason))
+        print("Error message: {}".format(resp.msg.getheader('X-Error-Detail')))
         sys.exit(1)
     data = json.loads(data)
     requestName = data['result'][0]['request']
-    print "  Request '%s' successfully created." % requestName
+    print("  Request '{}' successfully created.".format(requestName))
     return requestName
 
 
 def approveRequest(workflow):
-    #print "Approving request..."
+    # print "Approving request..."
     encodedParams = json.dumps({"RequestStatus": "assignment-approved"})
     headers = {"Content-type": "application/json",
                "Accept": "application/json"}
 
-    conn = httplib.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'), key_file=os.getenv('X509_USER_PROXY'))
+    conn = http.client.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'),
+                                       key_file=os.getenv('X509_USER_PROXY'))
     conn.request("PUT", "/reqmgr2/data/request/%s" % workflow, encodedParams, headers)
     resp = conn.getresponse()
     data = resp.read()
     if resp.status != 200:
-        print "Response status: %s\tResponse reason: %s" % (resp.status, resp.reason)
+        print("Response status: {}\tResponse reason: {}".format(resp.status, resp.reason))
         if hasattr(resp.msg, "x-error-detail"):
-            print "Error message: %s" % resp.msg["x-error-detail"]
+            print("Error message: {}".format(resp.msg["x-error-detail"]))
             sys.exit(2)
     conn.close()
-    #print "  Request successfully approved!"
-    return
 
 
 if __name__ == '__main__':
