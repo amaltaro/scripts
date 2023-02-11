@@ -1,16 +1,14 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from __future__ import print_function
 
-import httplib
 import json
 import os
 import sys
+import http.client
 
-# url = "cmsweb.cern.ch"
+#url = "cmsweb.cern.ch"
 url = "cmsweb-testbed.cern.ch"
-
-
-# url = "alan-cloud2.cern.ch"
+#url = "alancc7-cloud2.cern.ch"
 
 
 def createClone(originalRequest, schema=None):
@@ -19,7 +17,8 @@ def createClone(originalRequest, schema=None):
                "Accept": "application/json"}
 
     encodedParams = json.dumps(schema)
-    conn = httplib.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'), key_file=os.getenv('X509_USER_PROXY'))
+    conn = http.client.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'),
+                                       key_file=os.getenv('X509_USER_PROXY'))
     print("Cloning request '%s' with the following override settings: %s" % (originalRequest, schema))
     conn.request("POST", "/reqmgr2/data/request/clone/%s" % originalRequest, encodedParams, headers)
     resp = conn.getresponse()
