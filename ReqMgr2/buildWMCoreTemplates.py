@@ -51,8 +51,8 @@ def findDsets(reqDict):
 
 
 def getRequestDict(workflow):
-    # url = "cmsweb-testbed.cern.ch"
-    url = "cmsweb.cern.ch"
+    url = "cmsweb-testbed.cern.ch"
+    #url = "cmsweb.cern.ch"
     headers = {"Content-type": "application/json",
                "Accept": "application/json"}
     conn = http.client.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'),
@@ -87,16 +87,11 @@ def updateRequestDict(reqDict):
                       'FirstLumi', 'PeriodicHarvestInterval', 'RobustMerge', 'RunNumber', 'ValidStatus', 'VoGroup',
                       'PriorityTransition',
                       'VoRole', 'dashboardActivity', 'mergedLFNBase', 'unmergedLFNBase', 'MaxWaitTime',
-                      'OutputModulesLFNBases', 'Override',
+                      'OutputModulesLFNBases', 'Override', 'SiteBlacklist', 'EventsPerJob', 'FilesPerJob', 'LumisPerJob',
                       'ChainParentageMap', 'OpenRunningTimeout', 'Requestor', 'ParentageResolved', 'DatasetLifetime']
 
     createDict = {}
     # print(pformat(reqDict))
-    createDict['Comments'] = {"WorkFlowDesc": "", "CheckList": ""}
-    if reqDict.get("EnableHarvesting", False):
-        createDict['EnableHarvesting'] = reqDict['EnableHarvesting']
-        createDict['DQMHarvestUnit'] = reqDict['DQMHarvestUnit']
-        createDict['DQMUploadUrl'] = "https://cmsweb-testbed.cern.ch/dqm/dev"
 
     for key, value in list(reqDict.items()):
         if key in paramBlacklist:
@@ -117,6 +112,16 @@ def updateRequestDict(reqDict):
             createDict['ConfigCacheUrl'] = value
         else:
             createDict[key] = value
+
+    createDict['Comments'] = {"WorkFlowDesc": "", "CheckList": ""}
+    if reqDict.get("EnableHarvesting", False):
+        createDict['EnableHarvesting'] = reqDict['EnableHarvesting']
+        createDict['DQMHarvestUnit'] = reqDict['DQMHarvestUnit']
+        createDict['DQMUploadUrl'] = "https://cmsweb-testbed.cern.ch/dqm/dev"
+
+    # only copy the job splitting parameters if it is LumiBased
+    if reqDict.get("SplittingAlgo", "") == "LumiBased":
+        createDict['LumisPerJob'] = reqDict.get('LumisPerJob', 8)
 
     newSchema = {'createRequest': createDict}
     chainNames = None
