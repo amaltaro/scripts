@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 """
-Run it from vocms049 with your proxy in the environment
+Given that it relies on the dbs3-client package, you probably want to
+run it from a WMAgent environment.
+
+By default, this script copies a workflow from production endpoint (see L72).
 """
 
 import http.client
@@ -9,6 +12,7 @@ import os
 import random
 import re
 import sys
+import ssl
 from dbs.apis.dbsClient import DbsApi
 from pprint import pformat
 
@@ -49,14 +53,27 @@ def findDsets(reqDict):
             dsets.extend(findDsets(v))
     return dsets
 
+def getSSLContext():
+    """Create a SSL context manager for HTTPS requests"""
+    cert_file = os.getenv('X509_USER_PROXY')
+    key_file = os.getenv('X509_USER_PROXY')
+    ca_dir = '/etc/grid-security/certificates/'
+    print(f"Using X509_USER_PROXY env var, which is set to: {cert_file}")
+    print(f"Using default CA DIR set to: {ca_dir}")
 
+    # loading default CA certificates
+    ctx_ssl = ssl.create_default_context()
+    ctx_ssl.load_cert_chain(cert_file, keyfile=key_file)
+    ctx_ssl.load_verify_locations(None, ca_dir)
+    return ctx_ssl
+    
 def getRequestDict(workflow):
-    url = "cmsweb-testbed.cern.ch"
-    #url = "cmsweb.cern.ch"
+    #url = "cmsweb-testbed.cern.ch"
+    url = "cmsweb.cern.ch"
     headers = {"Content-type": "application/json",
                "Accept": "application/json"}
-    conn = http.client.HTTPSConnection(url, cert_file=os.getenv('X509_USER_PROXY'),
-                                       key_file=os.getenv('X509_USER_PROXY'))
+    ctx_ssl = getSSLContext()
+    conn = http.client.HTTPSConnection(url, context=ctx_ssl)
     urn = "/reqmgr2/data/request/%s" % workflow
     conn.request("GET", urn, headers=headers)
     r2 = conn.getresponse()
